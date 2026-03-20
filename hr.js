@@ -28,28 +28,20 @@ function renderEquipa(){
   wrap.innerHTML = `
     ${isOwner ? `<div class="hr-staff-picker" id="hr-staff-picker"></div>` : `<div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:22px;color:var(--gold2);margin-bottom:16px">${currentUser}</div>`}
     <div class="hr-tabs" id="hr-tabs-bar">
-      <button class="hr-tab ${hrTab==='horas'?'active':''}" data-tab="horas">⏱ Horas</button>
-      <button class="hr-tab ${hrTab==='ferias'?'active':''}" data-tab="ferias">🌴 Férias</button>
-      <button class="hr-tab ${hrTab==='formacao'?'active':''}" data-tab="formacao">📚 Formação</button>
+      <button class="hr-tab ${hrTab==='horas'?'active':''}" data-action="hr-tab" data-tab="horas">⏱ Horas</button>
+      <button class="hr-tab ${hrTab==='ferias'?'active':''}" data-action="hr-tab" data-tab="ferias">🌴 Férias</button>
+      <button class="hr-tab ${hrTab==='formacao'?'active':''}" data-action="hr-tab" data-tab="formacao">📚 Formação</button>
     </div>
     <div id="hr-tab-content"></div>`;
 
-  // Tabs event delegation
-  const tabsBar = document.getElementById('hr-tabs-bar');
-  if(tabsBar) tabsBar.addEventListener('click', function(e){
-    const btn = e.target.closest('[data-tab]');
-    if(btn) setHRTab(btn.dataset.tab);
-  });
+  // Setup permanent delegation (only once)
+  setupHRDelegation();
 
-  // Staff picker
+  // Staff picker HTML
   if(isOwner){
     const picker=document.getElementById('hr-staff-picker');
     if(picker){
-      picker.innerHTML=visibleStaff.map(s=>`<button class="hr-staff-btn ${s===hrStaff?'active':''}" data-staff="${s}">${s}</button>`).join('');
-      picker.addEventListener('click', function(e){
-        const btn = e.target.closest('[data-staff]');
-        if(btn) setHRStaff(btn.dataset.staff);
-      });
+      picker.innerHTML=visibleStaff.map(s=>`<button class="hr-staff-btn ${s===hrStaff?'active':''}" data-action="hr-staff" data-hrstaff="${s}">${s}</button>`).join('');
     }
   }
   renderHRTab();
@@ -58,67 +50,70 @@ function renderEquipa(){
 function setHRTab(t){ hrTab=t; renderEquipa(); }
 function setHRStaff(s){ hrStaff=s; renderEquipa(); }
 
+// Single permanent event handler for entire equipa section
+// Set up once — never destroyed, no {once:true}
+let hrDelegationReady = false;
+function setupHRDelegation(){
+  if(hrDelegationReady) return;
+  hrDelegationReady = true;
+
+  // Use equipa-content as the root — it always exists once owner logs in
+  document.addEventListener('click', function hrHandler(e){
+    // Only process if equipa tab is active
+    const equipaView = document.getElementById('view-equipa');
+    if(!equipaView || !equipaView.classList.contains('active')) return;
+
+    // ── Calendar: folga day ──
+    const folgaDay = e.target.closest('[data-folga-date]');
+    if(folgaDay){ showFolgaTypePicker(folgaDay.dataset.folgaDate); return; }
+
+    // ── Calendar: vacation day ──
+    const calDay = e.target.closest('.cal-day[data-date]');
+    if(calDay && !calDay.classList.contains('empty')){
+      toggleVacationDay(calDay.dataset.staff, calDay.dataset.date); return;
+    }
+
+    // ── Calendar nav ──
+    if(e.target.id==='cal-prev'){ hrCalYear--; renderEquipa(); return; }
+    if(e.target.id==='cal-next'){ hrCalYear++; renderEquipa(); return; }
+
+    // ── All data-action buttons ──
+    const btn = e.target.closest('button[data-action]');
+    if(!btn) return;
+    const {action, id, staff: s} = btn.dataset;
+
+    // Tabs
+    if(action==='hr-tab')         { setHRTab(btn.dataset.tab); return; }
+    if(action==='hr-staff')       { setHRStaff(btn.dataset.hrstaff); return; }
+
+    // Horas
+    if(action==='add-hours')      { openAddHoursModal(); return; }
+    if(action==='add-comp')       { openCompensationModal(); return; }
+    if(action==='approve-hours')  { approveHours(s, id, true); return; }
+    if(action==='reject-hours')   { approveHours(s, id, false); return; }
+    if(action==='delete-hours')   { deleteHours(s, id); return; }
+    if(action==='approve-comp')   { approveCompensation(s, id, true); return; }
+    if(action==='reject-comp')    { approveCompensation(s, id, false); return; }
+
+    // Férias
+    if(action==='approve-vac')    { approveVacation(s, id, true); return; }
+    if(action==='reject-vac')     { approveVacation(s, id, false); return; }
+    if(action==='cancel-folga')   { hrFolgaMode=false; renderEquipa(); return; }
+
+    // Formação
+    if(action==='add-training')   { openAddTrainingModal(); return; }
+    if(action==='del-training')   { deleteTraining(s, id); return; }
+  });
+}
+
 function renderHRTab(){
   const wrap=document.getElementById('hr-tab-content'); if(!wrap) return;
   const hr=getHR(hrStaff);
   const isOwner=currentRole==='owner';
-
-  if(hrTab==='horas'){
-    wrap.innerHTML=renderHorasTab(hr, isOwner);
-    // Single event listener for all horas buttons
-    wrap.addEventListener('click', function horasHandler(e){
-      const btn = e.target.closest('button[data-action]');
-      if(!btn) return;
-      const {action, id, staff: s} = btn.dataset;
-      if(action==='approve-hours')      approveHours(s, id, true);
-      else if(action==='reject-hours')  approveHours(s, id, false);
-      else if(action==='delete-hours')  deleteHours(s, id);
-      else if(action==='approve-comp')  approveCompensation(s, id, true);
-      else if(action==='reject-comp')   approveCompensation(s, id, false);
-      else if(action==='add-hours')     openAddHoursModal();
-      else if(action==='add-comp')      openCompensationModal();
-    }, {once: true});
-  }
-  if(hrTab==='ferias'){
-    wrap.innerHTML=renderFeriasTab(hr, isOwner);
-    // Attach single event listener for entire calendar (avoids 365 onclick handlers)
-    wrap.addEventListener('click', function calHandler(e){
-      // Folga day pick
-      const folgaDay = e.target.closest('[data-folga-date]');
-      if(folgaDay){
-        showFolgaTypePicker(folgaDay.dataset.folgaDate);
-        return;
-      }
-      // Vacation day click (normal mode)
-      const day = e.target.closest('.cal-day[data-date]');
-      if(day && !day.classList.contains('empty')){
-        toggleVacationDay(day.dataset.staff, day.dataset.date);
-        return;
-      }
-      // Nav buttons
-      if(e.target.id==='cal-prev'){ hrCalYear--; renderEquipa(); return; }
-      if(e.target.id==='cal-next'){ hrCalYear++; renderEquipa(); return; }
-      // Action buttons
-      const btn = e.target.closest('button[data-action]');
-      if(!btn) return;
-      const {action, id, staff: s} = btn.dataset;
-      if(action==='approve-vac')   { approveVacation(s, id, true); return; }
-      if(action==='reject-vac')    { approveVacation(s, id, false); return; }
-      if(action==='approve-comp')  { approveCompensation(s, id, true); return; }
-      if(action==='reject-comp')   { approveCompensation(s, id, false); return; }
-      if(action==='cancel-folga')  { hrFolgaMode=false; renderEquipa(); return; }
-    }, {once: true});
-  }
-  if(hrTab==='formacao'){
-    wrap.innerHTML=renderFormacaoTab(hr, isOwner);
-    wrap.addEventListener('click', function formHandler(e){
-      const btn = e.target.closest('button[data-action]');
-      if(!btn) return;
-      const {action, id, staff: s} = btn.dataset;
-      if(action==='add-training')    openAddTrainingModal();
-      else if(action==='del-training') deleteTraining(s, id);
-    }, {once: true});
-  }
+  // Just update HTML — delegation is permanent on document
+  if(hrTab==='horas')    wrap.innerHTML=renderHorasTab(hr, isOwner);
+  if(hrTab==='ferias')   wrap.innerHTML=renderFeriasTab(hr, isOwner);
+  if(hrTab==='formacao') wrap.innerHTML=renderFormacaoTab(hr, isOwner);
 }
 
 // ── HORAS ────────────────────────────────────────────────
@@ -240,11 +235,23 @@ const FOLGA_TYPES = {
   manha: { label:'Manhã (9h-12h)', hours:3, color:'#9b59b6', colorD:'rgba(155,89,182,.18)', emoji:'🟣' },
   tarde: { label:'Tarde (14h-19h)', hours:5, color:'#e67e22', colorD:'rgba(230,126,34,.18)', emoji:'🟠' },
 };
-const WORK_DAYS = [1,2,3,5]; // Mon, Tue, Wed, Fri (0=Sun)
+const WORK_DAYS = [1,2,3,5];    // Seg/Ter/Qua/Sex — válidos para folgas por horas extra
+const OPEN_DAYS = [1,2,3,4,5,6]; // Seg a Sáb — estabelecimento aberto (válido para férias)
+// Encerrado: Domingo (0) e Quinta (4) — nota: Quinta está incluída em OPEN_DAYS para férias
+// Encerrado apenas ao Domingo para férias; Quinta e Domingo fechados para folgas
+// Corrected: establishment closed Thu+Sun, so OPEN_DAYS = Mon,Tue,Wed,Fri,Sat
+const VACATION_DAYS = [1,2,3,5,6]; // Seg/Ter/Qua/Sex/Sáb — válidos para marcar férias
 
 function isWorkDay(dateStr){
+  // Used for folgas only (Seg/Ter/Qua/Sex)
   const d = new Date(dateStr+'T12:00:00');
   return WORK_DAYS.includes(d.getDay());
+}
+
+function isVacationDay(dateStr){
+  // Used for vacation marking (Seg/Ter/Qua/Sex/Sáb)
+  const d = new Date(dateStr+'T12:00:00');
+  return VACATION_DAYS.includes(d.getDay());
 }
 
 // Called from "Pedir Folga" button — switches to férias tab showing folga calendar
@@ -416,7 +423,8 @@ function renderFeriasTab(hr, isOwner){
       const isVacPend = pendingVac.includes(ds);
       const folga     = folgaByDate[ds];
       const wday      = new Date(ds+'T12:00:00').getDay();
-      const isWork    = WORK_DAYS.includes(wday);
+      const isWork    = WORK_DAYS.includes(wday);       // Seg/Ter/Qua/Sex — para folgas
+      const isVacOk   = VACATION_DAYS.includes(wday);  // Seg/Ter/Qua/Sex/Sáb — para férias
 
       let cls='', style='', title='';
       if(folga){
@@ -432,14 +440,23 @@ function renderFeriasTab(hr, isOwner){
       } else if(isToday){
         cls='cal-day today-d';
       } else if(hrFolgaMode && isWork && !isOwner){
+        // Folga mode: highlight valid folga days (Seg/Ter/Qua/Sex)
         cls='cal-day'; style='background:rgba(74,144,217,.08);border:1px solid rgba(74,144,217,.4);cursor:pointer';
         title='Tocar para pedir folga';
+      } else if(hrFolgaMode && !isWork){
+        // Folga mode: non-folga days shown greyed
+        cls='cal-day normal'; style='opacity:0.25';
       } else {
-        cls='cal-day normal'; style=isWork?'':'opacity:0.35';
+        // Normal mode: open days normal, closed days (Sun/Thu) greyed
+        cls='cal-day normal'; style=isVacOk?'':'opacity:0.25';
       }
 
+      // data-folga-date: only workdays in folga mode
+      // data-date: vacation days in normal mode (includes Sat)
       const dataAttrs = hrFolgaMode && isWork && !isOwner && !folga && !isVacApp
-        ? `data-folga-date="${ds}"` : (!folga && !isVacApp && !isVacPend ? `data-date="${ds}" data-staff="${hrStaff}"` : '');
+        ? `data-folga-date="${ds}"`
+        : (!hrFolgaMode && isVacOk && !folga && !isVacApp && !isVacPend
+          ? `data-date="${ds}" data-staff="${hrStaff}"` : '');
 
       html+=`<div class="${cls}" ${dataAttrs} style="${style}" title="${title}">${d}</div>`;
     }
