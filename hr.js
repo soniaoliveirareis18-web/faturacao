@@ -51,7 +51,21 @@ function renderHRTab(){
   const isOwner=currentRole==='owner';
 
   if(hrTab==='horas')    wrap.innerHTML=renderHorasTab(hr, isOwner);
-  if(hrTab==='ferias')   wrap.innerHTML=renderFeriasTab(hr, isOwner);
+  if(hrTab==='ferias'){
+    wrap.innerHTML=renderFeriasTab(hr, isOwner);
+    // Attach single event listener for entire calendar (avoids 365 onclick handlers)
+    wrap.addEventListener('click', function calHandler(e){
+      // Calendar day click
+      const day = e.target.closest('.cal-day[data-date]');
+      if(day && !day.classList.contains('empty')){
+        toggleVacationDay(day.dataset.staff, day.dataset.date);
+        return;
+      }
+      // Nav buttons
+      if(e.target.id==='cal-prev'){ hrCalYear--; renderEquipa(); return; }
+      if(e.target.id==='cal-next'){ hrCalYear++; renderEquipa(); return; }
+    }, {once: true});
+  }
   if(hrTab==='formacao') wrap.innerHTML=renderFormacaoTab(hr, isOwner);
 }
 
@@ -263,9 +277,9 @@ function renderFeriasTab(hr, isOwner){
 
   // Year calendar
   html+=`<div class="cal-month-nav">
-    <button class="cal-nav-btn" onclick="hrCalYear--;renderEquipa()">‹</button>
+    <button class="cal-nav-btn" id="cal-prev">‹</button>
     <div class="cal-month-lbl">${year}</div>
-    <button class="cal-nav-btn" onclick="hrCalYear++;renderEquipa()">›</button>
+    <button class="cal-nav-btn" id="cal-next">›</button>
   </div>`;
 
   // All 12 months mini calendar
@@ -285,7 +299,7 @@ function renderFeriasTab(hr, isOwner){
       const isPending=pending.includes(dateStr);
       const vac=hr.vacations.find(v=>v.dates.includes(dateStr));
       const cls=isToday?'today-d':isApproved?'vacation-approved':isPending?'vacation-pending':'normal';
-      html+=`<div class="cal-day ${cls}" onclick="toggleVacationDay('${hrStaff}','${dateStr}')" title="${isApproved?'Aprovado':isPending?'Pendente':'Clica para pedir'}">${d}</div>`;
+      html+=`<div class="cal-day ${cls}" data-date="${dateStr}" data-staff="${hrStaff}" title="${isApproved?'Aprovado':isPending?'Pendente':'Clica para pedir'}">${d}</div>`;
     }
     html+=`</div></div>`;
   }
@@ -295,6 +309,8 @@ function renderFeriasTab(hr, isOwner){
     <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(255,201,71,.2);border:1px solid #ffc947"></div>Pendente</div>
     <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(224,92,92,.2);border:1px solid var(--red)"></div>Recusado</div>
   </div>`;
+
+  html += `<div id="cal-event-target" style="display:none"></div>`;
 
   // Pending approvals (owner only)
   const pendingVacs=hr.vacations.filter(v=>v.status==='pending');
