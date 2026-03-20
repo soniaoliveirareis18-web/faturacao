@@ -1019,7 +1019,7 @@ function checkPin() {
   if (pinBuffer === correctPin) {
     currentUser = name;
     currentRole = role;
-    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('login-screen').style.display = 'none';
     if (role === 'owner') {
       document.getElementById('owner-mode').style.display = 'block';
       renderAll();
@@ -1039,7 +1039,7 @@ function doLogout() {
   currentUser = null; currentRole = null;
   document.getElementById('owner-mode').style.display = 'none';
   document.getElementById('staff-mode').style.display = 'none';
-  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('login-screen').style.display = 'flex';
   showUserSelect();
 }
  
