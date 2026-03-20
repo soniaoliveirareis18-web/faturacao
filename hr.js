@@ -24,19 +24,32 @@ function renderEquipa(){
   const visibleStaff = isOwner ? staff : [currentUser];
   if(!isOwner) hrStaff = currentUser;
 
+  // Build HTML without any inline onclick
   wrap.innerHTML = `
     ${isOwner ? `<div class="hr-staff-picker" id="hr-staff-picker"></div>` : `<div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:22px;color:var(--gold2);margin-bottom:16px">${currentUser}</div>`}
-    <div class="hr-tabs">
-      <button class="hr-tab ${hrTab==='horas'?'active':''}" onclick="setHRTab('horas')">⏱ Horas</button>
-      <button class="hr-tab ${hrTab==='ferias'?'active':''}" onclick="setHRTab('ferias')">🌴 Férias</button>
-      <button class="hr-tab ${hrTab==='formacao'?'active':''}" onclick="setHRTab('formacao')">📚 Formação</button>
+    <div class="hr-tabs" id="hr-tabs-bar">
+      <button class="hr-tab ${hrTab==='horas'?'active':''}" data-tab="horas">⏱ Horas</button>
+      <button class="hr-tab ${hrTab==='ferias'?'active':''}" data-tab="ferias">🌴 Férias</button>
+      <button class="hr-tab ${hrTab==='formacao'?'active':''}" data-tab="formacao">📚 Formação</button>
     </div>
     <div id="hr-tab-content"></div>`;
 
+  // Tabs event delegation
+  const tabsBar = document.getElementById('hr-tabs-bar');
+  if(tabsBar) tabsBar.addEventListener('click', function(e){
+    const btn = e.target.closest('[data-tab]');
+    if(btn) setHRTab(btn.dataset.tab);
+  });
+
+  // Staff picker
   if(isOwner){
     const picker=document.getElementById('hr-staff-picker');
     if(picker){
-      picker.innerHTML=visibleStaff.map(s=>`<button class="hr-staff-btn ${s===hrStaff?'active':''}" onclick="setHRStaff('${s}')">${s}</button>`).join('');
+      picker.innerHTML=visibleStaff.map(s=>`<button class="hr-staff-btn ${s===hrStaff?'active':''}" data-staff="${s}">${s}</button>`).join('');
+      picker.addEventListener('click', function(e){
+        const btn = e.target.closest('[data-staff]');
+        if(btn) setHRStaff(btn.dataset.staff);
+      });
     }
   }
   renderHRTab();
@@ -50,7 +63,22 @@ function renderHRTab(){
   const hr=getHR(hrStaff);
   const isOwner=currentRole==='owner';
 
-  if(hrTab==='horas')    wrap.innerHTML=renderHorasTab(hr, isOwner);
+  if(hrTab==='horas'){
+    wrap.innerHTML=renderHorasTab(hr, isOwner);
+    // Single event listener for all horas buttons
+    wrap.addEventListener('click', function horasHandler(e){
+      const btn = e.target.closest('button[data-action]');
+      if(!btn) return;
+      const {action, id, staff: s} = btn.dataset;
+      if(action==='approve-hours')      approveHours(s, id, true);
+      else if(action==='reject-hours')  approveHours(s, id, false);
+      else if(action==='delete-hours')  deleteHours(s, id);
+      else if(action==='approve-comp')  approveCompensation(s, id, true);
+      else if(action==='reject-comp')   approveCompensation(s, id, false);
+      else if(action==='add-hours')     openAddHoursModal();
+      else if(action==='add-comp')      openCompensationModal();
+    }, {once: true});
+  }
   if(hrTab==='ferias'){
     wrap.innerHTML=renderFeriasTab(hr, isOwner);
     // Attach single event listener for entire calendar (avoids 365 onclick handlers)
@@ -64,9 +92,24 @@ function renderHRTab(){
       // Nav buttons
       if(e.target.id==='cal-prev'){ hrCalYear--; renderEquipa(); return; }
       if(e.target.id==='cal-next'){ hrCalYear++; renderEquipa(); return; }
+      // Approve/reject vacation
+      const btn = e.target.closest('button[data-action]');
+      if(!btn) return;
+      const {action, id, staff: s} = btn.dataset;
+      if(action==='approve-vac') approveVacation(s, id, true);
+      else if(action==='reject-vac') approveVacation(s, id, false);
     }, {once: true});
   }
-  if(hrTab==='formacao') wrap.innerHTML=renderFormacaoTab(hr, isOwner);
+  if(hrTab==='formacao'){
+    wrap.innerHTML=renderFormacaoTab(hr, isOwner);
+    wrap.addEventListener('click', function formHandler(e){
+      const btn = e.target.closest('button[data-action]');
+      if(!btn) return;
+      const {action, id, staff: s} = btn.dataset;
+      if(action==='add-training')    openAddTrainingModal();
+      else if(action==='del-training') deleteTraining(s, id);
+    }, {once: true});
+  }
 }
 
 // ── HORAS ────────────────────────────────────────────────
@@ -102,8 +145,8 @@ function renderHorasTab(hr, isOwner){
     </div>`;
 
   html += `<div style="display:flex;gap:8px;margin-bottom:10px">
-    <button class="hr-add-btn" style="flex:1;margin-bottom:0" onclick="openAddHoursModal()">+ Registar Horas</button>
-    ${balance>0?`<button class="hr-add-btn" style="flex:1;margin-bottom:0;border-color:var(--blue);color:var(--blue);background:var(--blue-d)" onclick="openCompensationModal()">🌙 Pedir Folga</button>`:''}
+    <button class="hr-add-btn" style="flex:1;margin-bottom:0" data-action="add-hours">+ Registar Horas</button>
+    ${balance>0?`<button class="hr-add-btn" style="flex:1;margin-bottom:0;border-color:var(--blue);color:var(--blue);background:var(--blue-d)" data-action="add-comp">🌙 Pedir Folga</button>`:''}
   </div>`;
 
   // Pending compensations for owner to approve
@@ -120,8 +163,8 @@ function renderHorasTab(hr, isOwner){
           <div style="font-family:'DM Mono',monospace;font-size:16px;color:var(--gold)">-${c.hours}h</div>
         </div>
         <div style="display:flex;gap:6px;margin-top:8px">
-          <button class="hr-approve-btn approve" onclick="approveCompensation('${hrStaff}','${c.id}',true)">✓ Aprovar</button>
-          <button class="hr-approve-btn reject" onclick="approveCompensation('${hrStaff}','${c.id}',false)">✕ Recusar</button>
+          <button class="hr-approve-btn approve" data-action="approve-comp" data-id="${c.id}" data-staff="${hrStaff}">✓ Aprovar</button>
+          <button class="hr-approve-btn reject" data-action="reject-comp" data-id="${c.id}" data-staff="${hrStaff}">✕ Recusar</button>
         </div>
       </div>`;
     });
@@ -169,11 +212,11 @@ function renderHorasTab(hr, isOwner){
             </div>
           </div>
           ${isOwner&&!h.approved&&!h.rejected?`<div style="display:flex;gap:6px;margin-top:8px">
-            <button class="hr-approve-btn approve" onclick="approveHours('${hrStaff}','${h.id}',true)">✓ Aprovar</button>
-            <button class="hr-approve-btn reject" onclick="approveHours('${hrStaff}','${h.id}',false)">✕ Recusar</button>
-            <button onclick="deleteHours('${hrStaff}','${h.id}')" style="margin-left:auto;background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px">🗑</button>
+            <button class="hr-approve-btn approve" data-action="approve-hours" data-id="${h.id}" data-staff="${hrStaff}">✓ Aprovar</button>
+            <button class="hr-approve-btn reject" data-action="reject-hours" data-id="${h.id}" data-staff="${hrStaff}">✕ Recusar</button>
+            <button data-action="delete-hours" data-id="${h.id}" data-staff="${hrStaff}" style="margin-left:auto;background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px">🗑</button>
           </div>`:''}
-          ${isOwner&&(h.approved||h.rejected)?`<button onclick="deleteHours('${hrStaff}','${h.id}')" style="margin-top:6px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px">🗑 Apagar</button>`:''}
+          ${isOwner&&(h.approved||h.rejected)?`<button data-action="delete-hours" data-id="${h.id}" data-staff="${hrStaff}" style="margin-top:6px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px">🗑 Apagar</button>`:''}
           ${!isOwner&&!isWithin24h(h.date)?`<div style="font-size:10px;color:var(--text3);margin-top:6px">🔒 Bloqueado — pede à Sónia para editar</div>`:''}
         </div>`;
       });
@@ -323,8 +366,8 @@ function renderFeriasTab(hr, isOwner){
           <div style="font-size:11px;color:var(--text2)">${v.dates.map(d=>fmtD(d)).join(', ')}</div></div>
         </div>
         <div style="display:flex;gap:6px;margin-top:8px">
-          <button class="hr-approve-btn approve" onclick="approveVacation('${hrStaff}','${v.id}',true)">✓ Aprovar</button>
-          <button class="hr-approve-btn reject" onclick="approveVacation('${hrStaff}','${v.id}',false)">✕ Recusar</button>
+          <button class="hr-approve-btn approve" data-action="approve-vac" data-id="${v.id}" data-staff="${hrStaff}">✓ Aprovar</button>
+          <button class="hr-approve-btn reject" data-action="reject-vac" data-id="${v.id}" data-staff="${hrStaff}">✕ Recusar</button>
         </div>
       </div>`;
     });
@@ -395,7 +438,7 @@ function renderFormacaoTab(hr, isOwner){
     <div class="goal-nums"><span>${usedHours}h realizadas</span><span>Meta: ${totalAllowed}h</span></div>
   </div>`;
 
-  html+=`<button class="hr-add-btn" onclick="openAddTrainingModal()">+ Registar Formação</button>`;
+  html+=`<button class="hr-add-btn" data-action="add-training">+ Registar Formação</button>`;
 
   if(!hr.training.length){
     html+=`<div class="empty-state"><div class="empty-icon">📚</div>Sem formações registadas.</div>`;
@@ -406,7 +449,7 @@ function renderFormacaoTab(hr, isOwner){
           <div><div class="formacao-name">${t.name}</div><div class="formacao-meta">${fmtD(t.date)}</div></div>
           <div style="display:flex;align-items:center;gap:8px">
             <div class="formacao-hours">${t.hours}h</div>
-            <button class="formacao-del" onclick="deleteTraining('${hrStaff}','${t.id}')">🗑</button>
+            <button class="formacao-del" data-action="del-training" data-id="${t.id}" data-staff="${hrStaff}">🗑</button>
           </div>
         </div>
       </div>`;

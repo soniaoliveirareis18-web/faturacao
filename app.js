@@ -245,8 +245,8 @@ function renderStaffMode() {
           </div>
           <div class="appt-price">${fmt(a.paid||a.price||0)}</div>
           <div class="status-badges">
-            <div class="status-badge ${a.status==='done'?'active-done':''}" onclick="staffSetApptStatus('${a.id}','done')" title="Veio">✓</div>
-            <div class="status-badge ${a.status==='noshow'?'active-noshow':''}" onclick="staffSetApptStatus('${a.id}','noshow')" title="Não veio">✕</div>
+            <div class="status-badge ${a.status==='done'?'active-done':''}" data-action="staff-done" data-id="${a.id}" title="Veio">✓</div>
+            <div class="status-badge ${a.status==='noshow'?'active-noshow':''}" data-action="staff-noshow" data-id="${a.id}" title="Não veio">✕</div>
           </div>
         </div>
       </div>`).join('')
@@ -365,7 +365,7 @@ function renderBasket() {
       <div style="display:flex;align-items:center;gap:6px;width:100%">
         <span class="basket-svc">${x.svc.n}</span>
         <input type="number" inputmode="decimal" step="0.5" min="0" class="basket-val-input" value="${x.val}" onchange="updateBasketVal(${i},this.value)"/>
-        <button class="basket-del" onclick="removeFromBasket(${i})">✕</button>
+        <button class="basket-del" data-action="del-basket" data-idx="${i}">✕</button>
       </div>
       ${currentRole!=='staff'?`<div class="basket-staff-row">
         <span class="basket-staff-lbl">Funcionária</span>
@@ -484,7 +484,7 @@ function deleteEntry(id){
 // ═══════════════════════════════════════════════════════════
 function entryHTML(e) {
   const editBtn = currentRole==='owner'
-    ? `<button class="entry-btn" onclick="openEditModal(${e.id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>` : '';
+    ? `<button class="entry-btn" data-action="edit-entry" data-id="${e.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>` : '';
   return `<div class="entry-item">
     <div class="entry-left">
       <div class="entry-svc">${e.svc}</div>
@@ -497,7 +497,7 @@ function entryHTML(e) {
     <div class="entry-val">${fmt(e.val)}</div>
     <div class="entry-actions">
       ${editBtn}
-      <button class="entry-btn del" onclick="deleteEntry(${e.id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+      <button class="entry-btn del" data-action="del-entry" data-id="${e.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
     </div>
   </div>`;
 }
@@ -706,15 +706,51 @@ function renderStaffAnalysis(sub){
 // ═══════════════════════════════════════════════════════════
 //  HISTÓRICO
 // ═══════════════════════════════════════════════════════════
-function renderHist(){
-  buildStaffFilterChips('hist-staff-filter', histStaffFilter, s=>{ histStaffFilter=s; renderHist(); });
-  const filtered=histStaffFilter==='all'?entries:entries.filter(e=>e.staff===histStaffFilter);
-  const list=document.getElementById('hist-list');
-  if(!filtered.length){ list.innerHTML=`<div class="empty-state"><div class="empty-icon">✦</div>Sem registos${histStaffFilter!=='all'?' para '+histStaffFilter:''}.</div>`; return; }
+// Pagination state for history
+let histPage = 0;
+const HIST_PER_PAGE = 5; // days per page
+
+function renderHist(resetPage=true){
+  if(resetPage) histPage = 0;
+  buildStaffFilterChips('hist-staff-filter', histStaffFilter, s=>{ histStaffFilter=s; histPage=0; renderHist(); });
+  const filtered = histStaffFilter==='all' ? entries : entries.filter(e=>e.staff===histStaffFilter);
+  const list = document.getElementById('hist-list');
+  if(!list) return;
+  if(!filtered.length){
+    list.innerHTML=`<div class="empty-state"><div class="empty-icon">✦</div>Sem registos${histStaffFilter!=='all'?' para '+histStaffFilter:''}.</div>`;
+    return;
+  }
+
+  // Group by date, sort desc
   const groups={};
   filtered.forEach(e=>{ (groups[e.date]=groups[e.date]||[]).push(e); });
-  list.innerHTML=Object.entries(groups).sort((a,b)=>b[0].localeCompare(a[0]))
-    .map(([date,es])=>`<div class="sec-title" style="margin-top:16px">${fmtD(date)} — ${fmt(es.reduce((a,e)=>a+e.val,0))}</div>`+es.map(entryHTML).join('')).join('');
+  const sortedDates = Object.keys(groups).sort((a,b)=>b.localeCompare(a));
+  const totalDays   = sortedDates.length;
+  const pageStart   = histPage * HIST_PER_PAGE;
+  const pageEnd     = Math.min(pageStart + HIST_PER_PAGE, totalDays);
+  const pageDates   = sortedDates.slice(pageStart, pageEnd);
+
+  // Render only this page's dates
+  const html = pageDates.map(date => {
+    const es  = groups[date];
+    const tot = es.reduce((a,e)=>a+e.val,0);
+    return `<div class="sec-title" style="margin-top:16px">${fmtD(date)} — ${fmt(tot)}</div>`
+      + es.map(entryHTML).join('');
+  }).join('');
+
+  // Pagination controls
+  const hasPrev = histPage > 0;
+  const hasNext = pageEnd < totalDays;
+  const pageInfo = `${pageStart+1}–${pageEnd} de ${totalDays} dias`;
+
+  const pagination = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 0 8px;gap:8px">
+      <button id="hist-prev" style="padding:9px 16px;border-radius:10px;background:var(--s2);border:1px solid var(--border2);color:${hasPrev?'var(--text)':'var(--text3)'};font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:${hasPrev?'pointer':'default'}" ${hasPrev?'data-action="hist-prev"':''}>← Anterior</button>
+      <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${pageInfo}</span>
+      <button id="hist-next" style="padding:9px 16px;border-radius:10px;background:var(--s2);border:1px solid var(--border2);color:${hasNext?'var(--text)':'var(--text3)'};font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:${hasNext?'pointer':'default'}" ${hasNext?'data-action="hist-next"':''}>Seguinte →</button>
+    </div>`;
+
+  list.innerHTML = html + (totalDays > HIST_PER_PAGE ? pagination : '');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -750,20 +786,33 @@ function upsertClientFromZappy(name, appt){
   persistClients();
 }
 
-function renderClients(){
-  const q=(document.getElementById('client-search')?.value||'').toLowerCase();
-  const filtered=clients.filter(c=>!q||c.name.toLowerCase().includes(q)).sort((a,b)=>(b.totalSpent||0)-(a.totalSpent||0));
-  const wrap=document.getElementById('clients-list');
+// Pagination state for clients
+let clientsPage = 0;
+const CLIENTS_PER_PAGE = 20;
+
+function renderClients(resetPage=true){
+  if(resetPage) clientsPage = 0;
+  const q = (document.getElementById('client-search')?.value||'').toLowerCase();
+  const filtered = clients
+    .filter(c=>!q||c.name.toLowerCase().includes(q))
+    .sort((a,b)=>(b.totalSpent||0)-(a.totalSpent||0));
+  const wrap = document.getElementById('clients-list');
   if(!wrap) return;
+
   if(!filtered.length){
     wrap.innerHTML=`<div class="empty-state"><div class="empty-icon">👥</div>${q?'Nenhum cliente encontrado.':'Sem clientes ainda.<br>São criados automaticamente ao confirmar marcações do Zappy.'}</div>`;
     return;
   }
-  // Birthday alerts
-  const todayMD=today().slice(5);
-  wrap.innerHTML=filtered.map(c=>{
-    const bdayToday=c.birthday&&c.birthday.slice(5)===todayMD;
-    return `<div class="client-card" onclick="openClientModal('${c.id}')">
+
+  const totalClients = filtered.length;
+  const pageStart    = clientsPage * CLIENTS_PER_PAGE;
+  const pageEnd      = Math.min(pageStart + CLIENTS_PER_PAGE, totalClients);
+  const pageClients  = filtered.slice(pageStart, pageEnd);
+  const todayMD      = today().slice(5);
+
+  const html = pageClients.map(c=>{
+    const bdayToday = c.birthday && c.birthday.slice(5)===todayMD;
+    return `<div class="client-card" data-action="open-client" data-id="${c.id}">
       <div class="client-header">
         <div class="client-name">${c.name} ${bdayToday?'🎂':''}</div>
         ${c.vip?'<span class="client-vip">⭐ VIP</span>':''}
@@ -776,6 +825,20 @@ function renderClients(){
       ${c.notes?`<div class="client-note">📝 ${c.notes}</div>`:''}
     </div>`;
   }).join('');
+
+  const hasPrev = clientsPage > 0;
+  const hasNext = pageEnd < totalClients;
+  const pageInfo = totalClients > CLIENTS_PER_PAGE
+    ? `${pageStart+1}–${pageEnd} de ${totalClients} clientes` : `${totalClients} cliente${totalClients!==1?'s':''}`;
+
+  const pagination = totalClients > CLIENTS_PER_PAGE ? `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 0 8px;gap:8px">
+      <button style="padding:9px 16px;border-radius:10px;background:var(--s2);border:1px solid var(--border2);color:${hasPrev?'var(--text)':'var(--text3)'};font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:${hasPrev?'pointer':'default'}" ${hasPrev?'data-action="clients-prev"':''}>← Anterior</button>
+      <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${pageInfo}</span>
+      <button style="padding:9px 16px;border-radius:10px;background:var(--s2);border:1px solid var(--border2);color:${hasNext?'var(--text)':'var(--text3)'};font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:${hasNext?'pointer':'default'}" ${hasNext?'data-action="clients-next"':''}>Seguinte →</button>
+    </div>` : '';
+
+  wrap.innerHTML = html + pagination;
 }
 
 function openClientModal(id){
@@ -787,7 +850,7 @@ function openClientModal(id){
     <div class="field"><label>Telefone</label><input class="finput" id="cm-phone" type="tel" value="${c.phone||''}" placeholder="+351 9xx xxx xxx"/></div>
     <div class="field"><label>Aniversário</label><input class="finput" id="cm-bday" type="date" value="${c.birthday||''}"/></div>
     <div class="field"><label>Notas (alergias, preferências...)</label><textarea class="finput" id="cm-notes" rows="3" style="resize:none">${c.notes||''}</textarea></div>
-    <button class="save-btn" onclick="saveClientModal('${c.id}')">Guardar</button>
+    <button class="save-btn" data-action="save-client" data-id="${c.id}">Guardar</button>
     <div class="sec-title" style="margin-top:16px">Histórico de Visitas</div>
     ${(c.history||[]).length?c.history.map(h=>`
       <div class="client-history-item">
@@ -835,7 +898,7 @@ function apptCardHTML(a){
   const statusClass=a.status==='done'?'status-done':a.status==='noshow'?'status-noshow':'';
   const payOpts=['Dinheiro','MB/Multibanco','MB Way','Cartão'].map(p=>`<option value="${p}" ${a.payType===p?'selected':''}>${p}</option>`).join('');
   return `<div class="appt-card ${statusClass}" id="appt-${a.id}">
-    <div class="appt-header" onclick="toggleAppt('${a.id}')">
+    <div class="appt-header" data-action="toggle" data-id="${a.id}">
       <div class="appt-time">${a.time}</div>
       <div class="appt-info">
         <div class="appt-name">${a.name||'Cliente'}</div>
@@ -845,8 +908,8 @@ function apptCardHTML(a){
       </div>
       <div class="appt-price">${fmt(totalPaid||a.price||0)}</div>
       <div class="status-badges">
-        <div class="status-badge ${a.status==='done'?'active-done':''}" onclick="setApptStatus(event,'${a.id}','done')">✓</div>
-        <div class="status-badge ${a.status==='noshow'?'active-noshow':''}" onclick="setApptStatus(event,'${a.id}','noshow')">✕</div>
+        <div class="status-badge ${a.status==='done'?'active-done':''}" data-action="done" data-id="${a.id}">✓</div>
+        <div class="status-badge ${a.status==='noshow'?'active-noshow':''}" data-action="noshow" data-id="${a.id}">✕</div>
       </div>
     </div>
     <div class="appt-body">
@@ -854,11 +917,11 @@ function apptCardHTML(a){
       <div class="appt-row"><label>Pagamento</label><select class="appt-select" onchange="updateApptPayType('${a.id}',this.value)">${payOpts}</select></div>
       <div class="appt-row"><label>Funcionária</label><select class="appt-select" onchange="updateApptStaff('${a.id}',this.value)">${staff.map(s=>`<option value="${s}" ${a.staff===s?'selected':''}>${s}</option>`).join('')}</select></div>
       <div class="appt-row"><label>Faturado</label><select class="appt-select" onchange="updateApptBilled('${a.id}',this.value)"><option value="fat" ${a.billed!=='nfat'?'selected':''}>✓ Sim</option><option value="nfat" ${a.billed==='nfat'?'selected':''}>✕ Não faturado</option></select></div>
-      ${extras.length?`<div class="extras-list">${extras.map((e,i)=>`<div class="extra-row"><span class="extra-svc">${e.svc}</span><span class="extra-val">${fmt(e.val)}</span><button class="extra-del" onclick="removeExtra('${a.id}',${i})">✕</button></div>`).join('')}</div>`:''}
+      ${extras.length?`<div class="extras-list">${extras.map((e,i)=>`<div class="extra-row"><span class="extra-svc">${e.svc}</span><span class="extra-val">${fmt(e.val)}</span><button class="extra-del" data-action="del-extra" data-id="${a.id}" data-idx="${i}">✕</button></div>`).join('')}</div>`:''}
       <div class="appt-actions">
-        <button class="appt-add-extra" onclick="addExtraToAppt('${a.id}')">+ Extra</button>
-        <button class="appt-save-btn" onclick="finalizeAppt('${a.id}')">${a.status==='done'?'↻ Atualizar':'✓ Confirmar e registar'}</button>
-        <button class="appt-del-btn" onclick="deleteAppt('${a.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+        <button class="appt-add-extra" data-action="add-extra" data-id="${a.id}">+ Extra</button>
+        <button class="appt-save-btn" data-action="finalize" data-id="${a.id}">${a.status==='done'?'↻ Atualizar':'✓ Confirmar e registar'}</button>
+        <button class="appt-del-btn" data-action="del-appt" data-id="${a.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
       </div>
     </div>
   </div>`;
@@ -957,6 +1020,49 @@ function saveAgAppointment(){
   upsertClientFromZappy(appt.name, appt);
   persistAppts(); closeAgAddModal(); renderAgenda();
   showToast('✓ Marcação adicionada!','success');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  GLOBAL EVENT DELEGATION
+// ═══════════════════════════════════════════════════════════
+function setupEventDelegation() {
+  // Single listener on document for all data-action elements
+  document.addEventListener('click', function(e) {
+    const el = e.target.closest('[data-action]');
+    if (!el) return;
+    const {action, id, idx} = el.dataset;
+    e.stopPropagation();
+
+    // Agenda actions
+    if (action==='toggle')      { toggleAppt(id); return; }
+    if (action==='done')        { setApptStatus(e, id, 'done'); return; }
+    if (action==='noshow')      { setApptStatus(e, id, 'noshow'); return; }
+    if (action==='add-extra')   { addExtraToAppt(id); return; }
+    if (action==='del-extra')   { removeExtra(id, parseInt(idx)); return; }
+    if (action==='finalize')    { finalizeAppt(id); return; }
+    if (action==='del-appt')    { deleteAppt(id); return; }
+
+    // Entry actions
+    if (action==='edit-entry')  { openEditModal(parseFloat(id)); return; }
+    if (action==='del-entry')   { deleteEntry(parseFloat(id)); return; }
+
+    // Client actions
+    if (action==='open-client') { openClientModal(id); return; }
+    if (action==='save-client') { saveClientModal(id); return; }
+
+    // Basket
+    if (action==='del-basket')  { removeFromBasket(parseInt(idx)); return; }
+
+    // Pagination
+    if (action==='hist-prev')     { histPage--;    renderHist(false); return; }
+    if (action==='hist-next')     { histPage++;    renderHist(false); return; }
+    if (action==='clients-prev')  { clientsPage--; renderClients(false); return; }
+    if (action==='clients-next')  { clientsPage++; renderClients(false); return; }
+
+    // Staff agenda
+    if (action==='staff-done')  { staffSetApptStatus(id, 'done'); return; }
+    if (action==='staff-noshow'){ staffSetApptStatus(id, 'noshow'); return; }
+  });
 }
 
 // ═══════════════════════════════════════════════════════════
