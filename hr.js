@@ -83,7 +83,13 @@ function renderHRTab(){
     wrap.innerHTML=renderFeriasTab(hr, isOwner);
     // Attach single event listener for entire calendar (avoids 365 onclick handlers)
     wrap.addEventListener('click', function calHandler(e){
-      // Calendar day click
+      // Folga day pick
+      const folgaDay = e.target.closest('[data-folga-date]');
+      if(folgaDay){
+        showFolgaTypePicker(folgaDay.dataset.folgaDate);
+        return;
+      }
+      // Vacation day click (normal mode)
       const day = e.target.closest('.cal-day[data-date]');
       if(day && !day.classList.contains('empty')){
         toggleVacationDay(day.dataset.staff, day.dataset.date);
@@ -92,12 +98,15 @@ function renderHRTab(){
       // Nav buttons
       if(e.target.id==='cal-prev'){ hrCalYear--; renderEquipa(); return; }
       if(e.target.id==='cal-next'){ hrCalYear++; renderEquipa(); return; }
-      // Approve/reject vacation
+      // Action buttons
       const btn = e.target.closest('button[data-action]');
       if(!btn) return;
       const {action, id, staff: s} = btn.dataset;
-      if(action==='approve-vac') approveVacation(s, id, true);
-      else if(action==='reject-vac') approveVacation(s, id, false);
+      if(action==='approve-vac')   { approveVacation(s, id, true); return; }
+      if(action==='reject-vac')    { approveVacation(s, id, false); return; }
+      if(action==='approve-comp')  { approveCompensation(s, id, true); return; }
+      if(action==='reject-comp')   { approveCompensation(s, id, false); return; }
+      if(action==='cancel-folga')  { hrFolgaMode=false; renderEquipa(); return; }
     }, {once: true});
   }
   if(hrTab==='formacao'){
@@ -225,20 +234,63 @@ function renderHorasTab(hr, isOwner){
   return html;
 }
 
+// Folga type config
+const FOLGA_TYPES = {
+  full:  { label:'Dia completo', hours:8, color:'#4a90d9', colorD:'rgba(74,144,217,.18)', emoji:'🔵' },
+  manha: { label:'Manhã (9h-12h)', hours:3, color:'#9b59b6', colorD:'rgba(155,89,182,.18)', emoji:'🟣' },
+  tarde: { label:'Tarde (14h-19h)', hours:5, color:'#e67e22', colorD:'rgba(230,126,34,.18)', emoji:'🟠' },
+};
+const WORK_DAYS = [1,2,3,5]; // Mon, Tue, Wed, Fri (0=Sun)
+
+function isWorkDay(dateStr){
+  const d = new Date(dateStr+'T12:00:00');
+  return WORK_DAYS.includes(d.getDay());
+}
+
+// Called from "Pedir Folga" button — switches to férias tab showing folga calendar
 function openCompensationModal(){
-  const hr=getHR(hrStaff);
-  const balance=calcHourBalance(hr);
-  if(balance<=0){ showToast('Sem saldo de horas extra.','error'); return; }
-  const type=confirm('Dia completo? OK = Dia completo | Cancelar = Meio-dia')?'full':'half';
-  const hours=type==='full'?8:4;
-  if(balance<hours){ showToast(`Saldo insuficiente (${balance}h disponíveis, precisas de ${hours}h).`,'error'); return; }
-  const dateRaw=prompt('Data da folga (DD/MM/AAAA):'); if(!dateRaw) return;
-  const note=prompt('Nota (opcional):')||'';
-  const comp={id:Date.now()+'',date:parseDate(dateRaw),type,hours,note,status:'pending'};
-  hr.compensations=hr.compensations||[];
-  hr.compensations.push(comp);
-  persistHR(); renderEquipa();
-  showToast('🟡 Pedido de folga enviado para aprovação!','success');
+  const hr = getHR(hrStaff);
+  const balance = calcHourBalance(hr);
+  if(balance <= 0){ showToast('Sem saldo de horas extra para usar.','error'); return; }
+  // Switch to férias tab — folga calendar is shown there
+  hrTab = 'ferias';
+  hrFolgaMode = true; // flag: folga picker mode
+  renderEquipa();
+  showToast('Seleciona o dia e tipo de folga no calendário 👇','success');
+}
+
+let hrFolgaMode = false; // true when in folga-picking mode
+
+function requestFolga(dateStr, type){
+  const hr = getHR(hrStaff);
+  const balance = calcHourBalance(hr);
+  const ft = FOLGA_TYPES[type];
+
+  if(!isWorkDay(dateStr)){
+    showToast('Folgas apenas em dias de trabalho (Seg/Ter/Qua/Sex).','error');
+    return;
+  }
+  if(balance < ft.hours){
+    showToast('Saldo insuficiente — tens '+balance+'h mas precisas de '+ft.hours+'h.','error');
+    return;
+  }
+  // Check not already requested
+  const already = (hr.compensations||[]).find(c=>c.date===dateStr&&c.status!=='rejected');
+  if(already){
+    showToast('Já tens um pedido de folga para este dia.','error');
+    return;
+  }
+  hr.compensations = hr.compensations||[];
+  hr.compensations.push({
+    id: Date.now()+'',
+    date: dateStr,
+    type,
+    hours: ft.hours,
+    status: 'pending',
+  });
+  hrFolgaMode = false;
+  persistHR(); renderEquipa(); updateBadges();
+  showToast('🟡 Pedido de '+ft.label+' enviado para aprovação!','success');
 }
 
 function approveCompensation(name,id,approve){
@@ -298,72 +350,121 @@ function deleteHours(name,id){
 // ── FÉRIAS ───────────────────────────────────────────────
 function renderFeriasTab(hr, isOwner){
   const year=hrCalYear;
-  const approved=hr.vacations.filter(v=>v.status==='approved').flatMap(v=>v.dates);
-  const pending =hr.vacations.filter(v=>v.status==='pending').flatMap(v=>v.dates);
-  const totalDays=hr.vacationDays||22;
-  const usedDays =approved.filter(d=>d.startsWith(year+'')).length;
-  const remainDays=totalDays-usedDays;
+  const approved    = hr.vacations.filter(v=>v.status==='approved').flatMap(v=>v.dates);
+  const pendingVac  = hr.vacations.filter(v=>v.status==='pending').flatMap(v=>v.dates);
+  const totalDays   = hr.vacationDays||22;
+  const usedDays    = approved.filter(d=>d.startsWith(year+'')).length;
+  const remainDays  = totalDays-usedDays;
+
+  // Folgas
+  const approvedComps = (hr.compensations||[]).filter(c=>c.status==='approved');
+  const pendingComps  = (hr.compensations||[]).filter(c=>c.status==='pending');
+  const balance       = calcHourBalance(hr);
 
   let html=`
     <div class="grid3" style="margin-bottom:12px">
-      <div class="card gold"><div class="card-label">Direito</div><div class="card-val">${totalDays}d</div></div>
-      <div class="card green"><div class="card-label">Aprovados</div><div class="card-val">${usedDays}d</div></div>
-      <div class="card ${remainDays<5?'red':'blue'}"><div class="card-label">Restam</div><div class="card-val">${remainDays}d</div></div>
+      <div class="card gold"><div class="card-label">Férias</div><div class="card-val">${remainDays}d</div><div class="card-sub">de ${totalDays} disponíveis</div></div>
+      <div class="card ${balance>=0?'green':'red'}"><div class="card-label">Saldo horas</div><div class="card-val">${balance>=0?'+':''}${balance}h</div><div class="card-sub">para folgas</div></div>
+      <div class="card blue"><div class="card-label">Folgas</div><div class="card-val">${approvedComps.length}</div><div class="card-sub">aprovadas</div></div>
     </div>`;
 
   if(isOwner){
     html+=`<div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
       <span style="font-size:11px;color:var(--text2);font-weight:700">Dias de férias:</span>
-      <input type="number" value="${totalDays}" min="0" max="60" style="width:60px;background:var(--s2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;padding:6px;outline:none;text-align:center" onchange="setVacationDays('${hrStaff}',this.value)"/>
+      <input type="number" value="${totalDays}" min="0" max="60"
+        style="width:60px;background:var(--s2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;padding:6px;outline:none;text-align:center"
+        onchange="setVacationDays('${hrStaff}',this.value)"/>
     </div>`;
   }
 
-  // Year calendar
+  // Folga mode banner
+  if(hrFolgaMode && !isOwner){
+    html+=`<div style="background:rgba(74,144,217,.15);border:1px solid #4a90d9;border-radius:12px;padding:12px 14px;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:700;color:#4a90d9;margin-bottom:4px">🌙 Seleciona o dia de folga</div>
+      <div style="font-size:11px;color:var(--text2)">Só dias de trabalho (Seg/Ter/Qua/Sex) estão disponíveis</div>
+      <button data-action="cancel-folga" style="margin-top:8px;padding:6px 12px;background:none;border:1px solid var(--border2);border-radius:8px;color:var(--text2);font-family:'Syne',sans-serif;font-size:11px;font-weight:700;cursor:pointer">✕ Cancelar</button>
+    </div>`;
+  }
+
+  // Year nav
   html+=`<div class="cal-month-nav">
     <button class="cal-nav-btn" id="cal-prev">‹</button>
     <div class="cal-month-lbl">${year}</div>
     <button class="cal-nav-btn" id="cal-next">›</button>
   </div>`;
 
-  // All 12 months mini calendar
+  // Build lookup maps for fast access
+  const folgaByDate = {};
+  approvedComps.forEach(c=>{ folgaByDate[c.date]={...c,approved:true}; });
+  pendingComps.forEach(c=>{ if(!folgaByDate[c.date]) folgaByDate[c.date]={...c,approved:false}; });
+
+  // 12 month calendar
   for(let m=0;m<12;m++){
     const mDate=new Date(year,m,1);
     const mName=mDate.toLocaleDateString('pt-PT',{month:'long'});
-    html+=`<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:6px">${mName}</div>`;
-    html+=`<div class="cal-grid">`;
+    html+=`<div style="margin-bottom:14px">
+      <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:6px">${mName}</div>
+      <div class="cal-grid">`;
     ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].forEach(d=>{ html+=`<div class="cal-day-name">${d}</div>`; });
     const firstDay=(mDate.getDay()+6)%7;
     for(let i=0;i<firstDay;i++) html+=`<div class="cal-day empty"></div>`;
     const daysInMonth=new Date(year,m+1,0).getDate();
     for(let d=1;d<=daysInMonth;d++){
-      const dateStr=year+'-'+(m+1).toString().padStart(2,'0')+'-'+d.toString().padStart(2,'0');
-      const isToday=dateStr===today();
-      const isApproved=approved.includes(dateStr);
-      const isPending=pending.includes(dateStr);
-      const vac=hr.vacations.find(v=>v.dates.includes(dateStr));
-      const cls=isToday?'today-d':isApproved?'vacation-approved':isPending?'vacation-pending':'normal';
-      html+=`<div class="cal-day ${cls}" data-date="${dateStr}" data-staff="${hrStaff}" title="${isApproved?'Aprovado':isPending?'Pendente':'Clica para pedir'}">${d}</div>`;
+      const ds=year+'-'+(m+1).toString().padStart(2,'0')+'-'+d.toString().padStart(2,'0');
+      const isToday   = ds===today();
+      const isVacApp  = approved.includes(ds);
+      const isVacPend = pendingVac.includes(ds);
+      const folga     = folgaByDate[ds];
+      const wday      = new Date(ds+'T12:00:00').getDay();
+      const isWork    = WORK_DAYS.includes(wday);
+
+      let cls='', style='', title='';
+      if(folga){
+        const ft=FOLGA_TYPES[folga.type]||FOLGA_TYPES.full;
+        const alpha=folga.approved?'1':'0.5';
+        style=`background:${ft.colorD};border:2px solid ${ft.color};opacity:${alpha}`;
+        cls='cal-day';
+        title=ft.emoji+' '+ft.label+(folga.approved?' (aprovado)':' (pendente)');
+      } else if(isVacApp){
+        cls='cal-day vacation-approved'; title='Férias aprovadas';
+      } else if(isVacPend){
+        cls='cal-day vacation-pending'; title='Férias pendentes';
+      } else if(isToday){
+        cls='cal-day today-d';
+      } else if(hrFolgaMode && isWork && !isOwner){
+        cls='cal-day'; style='background:rgba(74,144,217,.08);border:1px solid rgba(74,144,217,.4);cursor:pointer';
+        title='Tocar para pedir folga';
+      } else {
+        cls='cal-day normal'; style=isWork?'':'opacity:0.35';
+      }
+
+      const dataAttrs = hrFolgaMode && isWork && !isOwner && !folga && !isVacApp
+        ? `data-folga-date="${ds}"` : (!folga && !isVacApp && !isVacPend ? `data-date="${ds}" data-staff="${hrStaff}"` : '');
+
+      html+=`<div class="${cls}" ${dataAttrs} style="${style}" title="${title}">${d}</div>`;
     }
     html+=`</div></div>`;
   }
 
-  html+=`<div class="cal-legend">
-    <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(107,191,142,.3);border:1px solid var(--green)"></div>Aprovado</div>
-    <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(255,201,71,.2);border:1px solid #ffc947"></div>Pendente</div>
-    <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(224,92,92,.2);border:1px solid var(--red)"></div>Recusado</div>
+  // Legend
+  html+=`<div class="cal-legend" style="flex-wrap:wrap;gap:8px">
+    <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(107,191,142,.3);border:1px solid var(--green)"></div>Férias</div>
+    <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(74,144,217,.3);border:2px solid #4a90d9"></div>🔵 Folga dia (8h)</div>
+    <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(155,89,182,.3);border:2px solid #9b59b6"></div>🟣 Manhã (3h)</div>
+    <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(230,126,34,.3);border:2px solid #e67e22"></div>🟠 Tarde (5h)</div>
   </div>`;
 
-  html += `<div id="cal-event-target" style="display:none"></div>`;
-
-  // Pending approvals (owner only)
+  // Pending vacation approvals (owner)
   const pendingVacs=hr.vacations.filter(v=>v.status==='pending');
   if(isOwner&&pendingVacs.length){
-    html+=`<div class="sec-title" style="margin-top:16px">🟡 Pedidos Pendentes</div>`;
+    html+=`<div class="sec-title" style="margin-top:16px">🟡 Pedidos de Férias Pendentes</div>`;
     pendingVacs.forEach(v=>{
       html+=`<div class="hr-card" style="margin-bottom:8px">
         <div class="hr-card-header">
-          <div><div style="font-size:13px;font-weight:700">${v.dates.length} dia${v.dates.length!==1?'s':''}</div>
-          <div style="font-size:11px;color:var(--text2)">${v.dates.map(d=>fmtD(d)).join(', ')}</div></div>
+          <div>
+            <div style="font-size:13px;font-weight:700">${v.dates.length} dia${v.dates.length!==1?'s':''}</div>
+            <div style="font-size:11px;color:var(--text2)">${v.dates.map(d=>fmtD(d)).join(', ')}</div>
+          </div>
         </div>
         <div style="display:flex;gap:6px;margin-top:8px">
           <button class="hr-approve-btn approve" data-action="approve-vac" data-id="${v.id}" data-staff="${hrStaff}">✓ Aprovar</button>
@@ -372,7 +473,76 @@ function renderFeriasTab(hr, isOwner){
       </div>`;
     });
   }
+
+  // Pending folga approvals (owner)
+  if(isOwner&&pendingComps.length){
+    html+=`<div class="sec-title" style="margin-top:16px">🟡 Pedidos de Folga Pendentes</div>`;
+    pendingComps.forEach(c=>{
+      const ft=FOLGA_TYPES[c.type]||FOLGA_TYPES.full;
+      html+=`<div class="hr-card" style="margin-bottom:8px;border-color:${ft.color}">
+        <div class="hr-card-header">
+          <div>
+            <div style="font-size:13px;font-weight:700">${ft.emoji} ${ft.label} — ${fmtD(c.date)}</div>
+            <div style="font-size:11px;color:var(--text2)">Desconta ${c.hours}h do saldo</div>
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:15px;color:${ft.color}">-${c.hours}h</div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="hr-approve-btn approve" data-action="approve-comp" data-id="${c.id}" data-staff="${hrStaff}">✓ Aprovar</button>
+          <button class="hr-approve-btn reject" data-action="reject-comp" data-id="${c.id}" data-staff="${hrStaff}">✕ Recusar</button>
+        </div>
+      </div>`;
+    });
+  }
+
+  html+=`<div id="cal-event-target" style="display:none"></div>`;
   return html;
+}
+
+// Folga type picker — shows inline after clicking a workday in folga mode
+function showFolgaTypePicker(dateStr){
+  const balance = calcHourBalance(getHR(hrStaff));
+  // Build a small inline picker overlay
+  const existing = document.getElementById('folga-picker-overlay');
+  if(existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'folga-picker-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:600;background:rgba(10,8,6,.85);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:20px';
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--s1);border:1px solid var(--border2);border-radius:20px;padding:22px;width:100%;max-width:320px';
+
+  const types = Object.entries(FOLGA_TYPES).filter(([,ft])=>balance>=ft.hours);
+  if(!types.length){
+    box.innerHTML=`<div style="text-align:center;padding:10px">
+      <div style="font-size:24px;margin-bottom:8px">😔</div>
+      <div style="font-size:14px;font-weight:700;color:var(--text)">Saldo insuficiente</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:4px">Tens ${balance}h — mínimo necessário é 3h (manhã)</div>
+      <button id="fp-cancel" style="margin-top:14px;padding:10px 20px;background:var(--s2);border:1px solid var(--border2);border-radius:10px;color:var(--text2);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;width:100%">Fechar</button>
+    </div>`;
+  } else {
+    const dayLabel = fmtD(dateStr);
+    box.innerHTML=`
+      <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:20px;color:var(--gold2);margin-bottom:4px">Folga em ${dayLabel}</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:16px">Saldo disponível: ${balance}h — escolhe o tipo:</div>
+      ${types.map(([type,ft])=>`
+        <button data-fp-type="${type}" style="width:100%;margin-bottom:8px;padding:13px 14px;border-radius:12px;background:${ft.colorD};border:2px solid ${ft.color};color:${ft.color};font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+          <span>${ft.emoji} ${ft.label}</span>
+          <span style="font-family:'DM Mono',monospace;font-size:12px;opacity:.8">-${ft.hours}h</span>
+        </button>`).join('')}
+      <button id="fp-cancel" style="width:100%;padding:10px;background:none;border:1px solid var(--border2);border-radius:10px;color:var(--text2);font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer;margin-top:4px">Cancelar</button>`;
+  }
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  // Event listener on overlay
+  overlay.addEventListener('click', function(e){
+    if(e.target.id==='fp-cancel'||e.target===overlay){ overlay.remove(); return; }
+    const btn = e.target.closest('[data-fp-type]');
+    if(btn){ overlay.remove(); requestFolga(dateStr, btn.dataset.fpType); }
+  });
 }
 
 function toggleVacationDay(name, dateStr){
