@@ -461,12 +461,12 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 <body>
  
 <!-- LOGIN SCREEN -->
-<div class="login-screen" id="login-screen">
+<div class="login-screen" id="login-screen" style="display:flex">
   <div class="login-logo">Sónia Reis</div>
   <div class="login-sub">Estética · Beleza · Formação</div>
   <div class="login-greeting" id="login-greeting">Quem está a entrar?</div>
-  <div class="user-select" id="user-select"></div>
-  <div class="pin-screen hidden" id="pin-screen">
+  <div class="user-select" id="user-select" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:320px;margin-bottom:32px"></div>
+  <div class="pin-screen hidden" id="pin-screen" style="display:none">
     <div class="pin-user" id="pin-user-name"></div>
     <div class="pin-hint">Introduz o teu PIN de 4 dígitos</div>
     <div class="pin-dots" id="pin-dots">
@@ -923,13 +923,20 @@ const persistPins   = () => localStorage.setItem('sr_pins',   JSON.stringify(use
 // ═══════════════════════════════════════════════════════════
 //  BOOT
 // ═══════════════════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', () => {
-  // Set default owner PIN if not set
-  if (!userPins['Sónia']) userPins['Sónia'] = '1234';
-  staff.forEach(s => { if (!userPins[s] && s !== 'Sónia') userPins[s] = '0000'; });
+// Build login immediately (don't wait for DOMContentLoaded)
+(function initLogin(){
+  if(!userPins['Sónia']) userPins['Sónia']='1234';
+  staff.forEach(s=>{ if(!userPins[s]&&s!=='Sónia') userPins[s]='0000'; });
   persistPins();
+  // Build login as soon as DOM is ready
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', buildLoginScreen);
+  } else {
+    buildLoginScreen();
+  }
+})();
  
-  buildLoginScreen();
+document.addEventListener('DOMContentLoaded', () => {
  
   const now = new Date();
   const dateStr = now.toLocaleDateString('pt-PT',{day:'numeric',month:'short',year:'numeric'});
@@ -947,19 +954,22 @@ document.addEventListener('DOMContentLoaded', () => {
 // ═══════════════════════════════════════════════════════════
 function buildLoginScreen() {
   const wrap = document.getElementById('user-select');
+  if(!wrap) return;
   wrap.innerHTML = '';
-  // Owner button
-  const ownerBtn = document.createElement('button');
-  ownerBtn.className = 'user-btn owner';
-  ownerBtn.innerHTML = `<div class="user-avatar owner-av">SR</div><div class="user-name">Sónia</div><div class="user-role">Dona</div>`;
-  ownerBtn.onclick = () => showPinScreen('Sónia', 'owner');
-  wrap.appendChild(ownerBtn);
-  // Staff buttons
-  staff.filter(s => s !== 'Sónia').forEach(s => {
+  // All users including Sónia
+  const allUsers = ['Sónia', ...staff.filter(s => s !== 'Sónia')];
+  allUsers.forEach(name => {
+    const isOwner = name === 'Sónia';
     const btn = document.createElement('button');
-    btn.className = 'user-btn staff-btn';
-    btn.innerHTML = `<div class="user-avatar staff-av">${s.slice(0,2).toUpperCase()}</div><div class="user-name">${s}</div>`;
-    btn.onclick = () => showPinScreen(s, 'staff');
+    btn.className = 'user-btn ' + (isOwner ? 'owner' : 'staff-btn');
+    btn.style.cssText = 'padding:16px 10px;border-radius:14px;border:2px solid '+(isOwner?'var(--gold)':'var(--border2)')+';background:var(--s1);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .15s';
+    const initials = isOwner ? 'SR' : name.slice(0,2).toUpperCase();
+    btn.innerHTML = `
+      <div style="width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;font-family:'DM Mono',monospace;background:${isOwner?'var(--gold-d)':'var(--s2)'};color:${isOwner?'var(--gold2)':'var(--text2)'};border:2px solid ${isOwner?'var(--gold)':'var(--border2)'}">
+        ${initials}
+      </div>
+      <div style="font-size:13px;font-weight:700;color:var(--text)">${name}</div>`;
+    btn.onclick = () => showPinScreen(name, isOwner ? 'owner' : 'staff');
     wrap.appendChild(btn);
   });
 }
@@ -969,17 +979,16 @@ function showPinScreen(name, role) {
   pinTargetUser = {name, role};
   document.getElementById('pin-user-name').textContent = name;
   updatePinDots();
-  document.getElementById('user-select').classList.add('hidden') || (document.getElementById('user-select').style.display='none');
+  document.getElementById('user-select').style.display='none';
+  document.getElementById('pin-screen').style.cssText='display:flex;flex-direction:column;align-items:center;width:100%;max-width:280px';
   document.getElementById('pin-screen').classList.remove('hidden');
-  document.getElementById('pin-screen').style.display='flex';
-  document.getElementById('pin-screen').style.flexDirection='column';
-  document.getElementById('pin-screen').style.alignItems='center';
 }
  
 function showUserSelect() {
   pinBuffer = '';
-  document.getElementById('user-select').style.display='';
+  document.getElementById('user-select').style.display='grid';
   document.getElementById('user-select').classList.remove('hidden');
+  document.getElementById('pin-screen').style.display='none';
   document.getElementById('pin-screen').classList.add('hidden');
   updatePinDots();
 }
