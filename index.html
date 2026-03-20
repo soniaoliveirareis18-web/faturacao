@@ -465,8 +465,21 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
   <div class="login-logo">Sónia Reis</div>
   <div class="login-sub">Estética · Beleza · Formação</div>
   <div class="login-greeting" id="login-greeting">Quem está a entrar?</div>
-  <div class="user-select" id="user-select" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:320px;margin-bottom:32px"></div>
-  <div class="pin-screen hidden" id="pin-screen" style="display:none">
+  <div id="user-select" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:320px;margin-bottom:32px">
+    <button onclick="showPinScreen('Sónia','owner')" style="padding:20px 10px;border-radius:14px;border:2px solid #c9a96e;background:#1a1713;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px">
+      <div style="width:48px;height:48px;border-radius:24px;background:rgba(201,169,110,.13);color:#e8cc9a;border:2px solid #c9a96e;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;font-family:monospace">SR</div>
+      <div style="font-size:14px;font-weight:700;color:#e8ddd0">Sónia</div>
+    </button>
+    <button onclick="showPinScreen('Cátia','staff')" style="padding:20px 10px;border-radius:14px;border:2px solid #2e2922;background:#1a1713;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px">
+      <div style="width:48px;height:48px;border-radius:24px;background:#221f1a;color:#8a7d6e;border:2px solid #2e2922;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;font-family:monospace">CÁ</div>
+      <div style="font-size:14px;font-weight:700;color:#e8ddd0">Cátia</div>
+    </button>
+    <button onclick="showPinScreen('Lara','staff')" style="padding:20px 10px;border-radius:14px;border:2px solid #2e2922;background:#1a1713;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px">
+      <div style="width:48px;height:48px;border-radius:24px;background:#221f1a;color:#8a7d6e;border:2px solid #2e2922;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;font-family:monospace">LA</div>
+      <div style="font-size:14px;font-weight:700;color:#e8ddd0">Lara</div>
+    </button>
+  </div>
+  <div id="pin-screen" style="display:none;flex-direction:column;align-items:center;width:100%;max-width:280px">
     <div class="pin-user" id="pin-user-name"></div>
     <div class="pin-hint">Introduz o teu PIN de 4 dígitos</div>
     <div class="pin-dots" id="pin-dots">
@@ -923,19 +936,6 @@ const persistPins   = () => localStorage.setItem('sr_pins',   JSON.stringify(use
 // ═══════════════════════════════════════════════════════════
 //  BOOT
 // ═══════════════════════════════════════════════════════════
-// Build login immediately (don't wait for DOMContentLoaded)
-(function initLogin(){
-  if(!userPins['Sónia']) userPins['Sónia']='1234';
-  staff.forEach(s=>{ if(!userPins[s]&&s!=='Sónia') userPins[s]='0000'; });
-  persistPins();
-  // Build login as soon as DOM is ready
-  if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded', buildLoginScreen);
-  } else {
-    buildLoginScreen();
-  }
-})();
- 
 document.addEventListener('DOMContentLoaded', () => {
  
   const now = new Date();
@@ -956,20 +956,16 @@ function buildLoginScreen() {
   const wrap = document.getElementById('user-select');
   if(!wrap) return;
   wrap.innerHTML = '';
-  // All users including Sónia
   const allUsers = ['Sónia', ...staff.filter(s => s !== 'Sónia')];
   allUsers.forEach(name => {
     const isOwner = name === 'Sónia';
-    const btn = document.createElement('button');
-    btn.className = 'user-btn ' + (isOwner ? 'owner' : 'staff-btn');
-    btn.style.cssText = 'padding:16px 10px;border-radius:14px;border:2px solid '+(isOwner?'var(--gold)':'var(--border2)')+';background:var(--s1);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .15s';
     const initials = isOwner ? 'SR' : name.slice(0,2).toUpperCase();
+    const btn = document.createElement('button');
+    btn.setAttribute('onclick', `showPinScreen('${name}','${isOwner?'owner':'staff'}')`);
+    btn.style.cssText = `padding:20px 10px;border-radius:14px;border:2px solid ${isOwner?'#c9a96e':'#2e2922'};background:#1a1713;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px`;
     btn.innerHTML = `
-      <div style="width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;font-family:'DM Mono',monospace;background:${isOwner?'var(--gold-d)':'var(--s2)'};color:${isOwner?'var(--gold2)':'var(--text2)'};border:2px solid ${isOwner?'var(--gold)':'var(--border2)'}">
-        ${initials}
-      </div>
-      <div style="font-size:13px;font-weight:700;color:var(--text)">${name}</div>`;
-    btn.onclick = () => showPinScreen(name, isOwner ? 'owner' : 'staff');
+      <div style="width:48px;height:48px;border-radius:24px;background:${isOwner?'rgba(201,169,110,.13)':'#221f1a'};color:${isOwner?'#e8cc9a':'#8a7d6e'};border:2px solid ${isOwner?'#c9a96e':'#2e2922'};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;font-family:monospace">${initials}</div>
+      <div style="font-size:14px;font-weight:700;color:#e8ddd0">${name}</div>`;
     wrap.appendChild(btn);
   });
 }
@@ -977,19 +973,21 @@ function buildLoginScreen() {
 function showPinScreen(name, role) {
   pinBuffer = '';
   pinTargetUser = {name, role};
-  document.getElementById('pin-user-name').textContent = name;
+  const pn = document.getElementById('pin-user-name');
+  const us = document.getElementById('user-select');
+  const ps = document.getElementById('pin-screen');
+  if(pn) pn.textContent = name;
+  if(us) us.style.display = 'none';
+  if(ps) { ps.style.display='flex'; ps.style.flexDirection='column'; ps.style.alignItems='center'; }
   updatePinDots();
-  document.getElementById('user-select').style.display='none';
-  document.getElementById('pin-screen').style.cssText='display:flex;flex-direction:column;align-items:center;width:100%;max-width:280px';
-  document.getElementById('pin-screen').classList.remove('hidden');
 }
  
 function showUserSelect() {
   pinBuffer = '';
-  document.getElementById('user-select').style.display='grid';
-  document.getElementById('user-select').classList.remove('hidden');
-  document.getElementById('pin-screen').style.display='none';
-  document.getElementById('pin-screen').classList.add('hidden');
+  const us = document.getElementById('user-select');
+  const ps = document.getElementById('pin-screen');
+  if(us) { us.style.display='grid'; buildLoginScreen(); }
+  if(ps) ps.style.display='none';
   updatePinDots();
 }
  
