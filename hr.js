@@ -53,19 +53,25 @@ function setHRStaff(s){ hrStaff=s; renderEquipa(); }
 // Single permanent event handler for entire equipa section
 // Set up once — never destroyed, no {once:true}
 let hrDelegationReady = false;
+
+function resetHRState(){
+  // Called on logout — resets state but keeps listener alive
+  hrTab      = 'horas';
+  hrStaff    = null;
+  hrCalYear  = new Date().getFullYear();
+  hrFolgaMode= false;
+  // Do NOT reset hrDelegationReady — listener stays registered
+}
+
 function setupHRDelegation(){
   if(hrDelegationReady) return;
   hrDelegationReady = true;
 
   // Use equipa-content as the root — it always exists once owner logs in
   document.addEventListener('click', function hrHandler(e){
-    // Only process if we're in owner mode and equipa content is visible
-    const equipaContent = document.getElementById('equipa-content');
-    const staffEquipa   = document.getElementById('staff-equipa-view');
-    const inOwnerEquipa = equipaContent && document.getElementById('owner-mode')?.style.display==='block';
-    const inStaffEquipa = staffEquipa && staffEquipa.style.display!=='none';
-    if(!inOwnerEquipa && !inStaffEquipa) return;
-    // Make sure the click is inside equipa content
+    // Only process if a user is logged in
+    if(!currentUser || !currentRole) return;
+    // Only process if click is inside equipa area or folga picker
     if(!e.target.closest('#equipa-content, #staff-equipa-view, #folga-picker-overlay')) return;
 
     // ── Calendar: folga day ──

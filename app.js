@@ -207,6 +207,8 @@ function checkPin() {
 
 function doLogout() {
   currentUser = null; currentRole = null;
+  // Reset HR state so next login starts fresh
+  if(typeof resetHRState === 'function') resetHRState();
   document.getElementById('owner-mode').style.display = 'none';
   document.getElementById('staff-mode').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
