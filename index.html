@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="SR Faturação"/>
+<meta name="theme-color" content="#c9a96e"/>
+<title>Sónia Reis · Faturação</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+
+<link rel="stylesheet" href="style.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Firebase SDK (v8 compat — carrega só se configurado) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div class="login-screen" id="login-screen">
+  <div class="login-logo">Sónia Reis</div>
+  <div class="login-sub">Estética · Beleza · Formação</div>
+  <div class="login-greeting" id="login-greeting">Quem está a entrar?</div>
+  <div id="user-select" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:320px;margin-bottom:32px">
+    <button onclick="showPinScreen('Sónia','owner')" style="padding:20px 10px;border-radius:14px;border:2px solid #c9a96e;background:#1a1713;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px">
+      <div style="width:48px;height:48px;border-radius:24px;background:rgba(201,169,110,.13);color:#e8cc9a;border:2px solid #c9a96e;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;font-family:monospace">SR</div>
+      <div style="font-size:14px;font-weight:700;color:#e8ddd0">Sónia</div>
+    </button>
+    <button onclick="showPinScreen('Cátia','staff')" style="padding:20px 10px;border-radius:14px;border:2px solid #2e2922;background:#1a1713;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px">
+      <div style="width:48px;height:48px;border-radius:24px;background:#221f1a;color:#8a7d6e;border:2px solid #2e2922;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;font-family:monospace">CÁ</div>
+      <div style="font-size:14px;font-weight:700;color:#e8ddd0">Cátia</div>
+    </button>
+    <button onclick="showPinScreen('Lara','staff')" style="padding:20px 10px;border-radius:14px;border:2px solid #2e2922;background:#1a1713;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px">
+      <div style="width:48px;height:48px;border-radius:24px;background:#221f1a;color:#8a7d6e;border:2px solid #2e2922;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;font-family:monospace">LA</div>
+      <div style="font-size:14px;font-weight:700;color:#e8ddd0">Lara</div>
+    </button>
+  </div>
+  <div id="pin-screen" style="display:none;flex-direction:column;align-items:center;width:100%;max-width:280px">
+    <div class="pin-user" id="pin-user-name"></div>
+    <div class="pin-hint">Introduz o teu PIN de 4 dígitos</div>
+    <div class="pin-dots" id="pin-dots">
+      <div class="pin-dot" id="pd0"></div>
+      <div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div>
+      <div class="pin-dot" id="pd3"></div>
+    </div>
+    <div class="pin-pad">
+      <button class="pin-key" onclick="pinKey('1')">1</button>
+      <button class="pin-key" onclick="pinKey('2')">2</button>
+      <button class="pin-key" onclick="pinKey('3')">3</button>
+      <button class="pin-key" onclick="pinKey('4')">4</button>
+      <button class="pin-key" onclick="pinKey('5')">5</button>
+      <button class="pin-key" onclick="pinKey('6')">6</button>
+      <button class="pin-key" onclick="pinKey('7')">7</button>
+      <button class="pin-key" onclick="pinKey('8')">8</button>
+      <button class="pin-key" onclick="pinKey('9')">9</button>
+      <button class="pin-key" style="visibility:hidden"></button>
+      <button class="pin-key" onclick="pinKey('0')">0</button>
+      <button class="pin-key del" onclick="pinDel()">⌫</button>
+    </div>
+    <button class="pin-back" onclick="showUserSelect()">← Voltar</button>
+  </div>
+</div>
+
+<!-- STAFF MODE (simplified) -->
+<div id="staff-mode" style="display:none">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-name" id="staff-mode-topname">Olá!</div>
+      <div class="topbar-sub">Modo Funcionária</div>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-date" id="staff-mode-date">—</div>
+      <button class="logout-btn" onclick="doLogout()">Sair</button>
+    </div>
+  </div>
+  <div class="staff-mode-view">
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button class="staff-reg-btn" style="flex:2;margin-bottom:0" onclick="openModal()">+ Registar Serviço</button>
+      <button onclick="showStaffEquipa()" style="flex:1;padding:18px;border-radius:14px;background:var(--s2);border:1px solid var(--border2);color:var(--text2);font-family:'Syne',sans-serif;font-size:14px;font-weight:700;cursor:pointer">👩 Equipa</button>
+    </div>
+    <div id="staff-equipa-view" style="display:none"></div>
+    <div id="staff-main-view">
+      <div class="sec-title">Os meus registos hoje</div>
+      <div class="entries-list" id="staff-today-list"></div>
+      <div class="sec-title" style="margin-top:20px">A minha agenda hoje</div>
+      <div id="staff-agenda-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- OWNER MODE -->
+<div id="owner-mode" style="display:none">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-name">Sónia Reis</div>
+      <div class="topbar-sub">Estética · Beleza · Formação</div>
+    </div>
+    <div class="topbar-right">
+      <div class="sync-dot" id="sync-dot"></div>
+      <div class="topbar-date" id="todayLabel">—</div>
+      <button class="logout-btn" onclick="doLogout()">Sair</button>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- HOJE -->
+    <div class="view active" id="view-hoje">
+      <div class="sec-title">Objetivo do Mês</div>
+      <div class="goal-wrap">
+        <div class="goal-header">
+          <div class="goal-title">Faturação Mensal</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <div class="goal-pct" id="goal-pct">0%</div>
+            <button class="goal-edit-btn" onclick="editGoal()">✎ Meta</button>
+          </div>
+        </div>
+        <div class="goal-bar"><div class="goal-fill" id="goal-fill" style="width:0%"></div></div>
+        <div class="goal-nums">
+          <span id="goal-current">0€ este mês</span>
+          <span id="goal-target">Meta: 0€</span>
+        </div>
+      </div>
+
+      <div class="sec-title">Resumo de Hoje</div>
+      <div class="grid2">
+        <div class="card green"><div class="card-label">Faturado</div><div class="card-val" id="h-fat">0€</div><div class="card-sub" id="h-fat-n">0 registos</div></div>
+        <div class="card red"><div class="card-label">Não Faturado</div><div class="card-val" id="h-nfat">0€</div><div class="card-sub" id="h-nfat-n">0 registos</div></div>
+      </div>
+      <div class="ratio-wrap">
+        <div class="ratio-header"><span>Faturado vs Não Faturado</span><span id="h-total-lbl" style="color:var(--text)">Total: 0€</span></div>
+        <div class="ratio-bar"><div class="ratio-green" id="h-ratio-g" style="width:0%"></div><div class="ratio-red"></div></div>
+        <div class="ratio-pcts"><span id="h-pct-f">0% fat.</span><span id="h-pct-n">0% n.fat.</span></div>
+      </div>
+      <div class="sec-title">Registos de Hoje</div>
+      <div class="entries-list" id="hoje-list"></div>
+    </div>
+
+    <!-- AGENDA -->
+    <div class="view" id="view-agenda">
+      <div class="agenda-toolbar">
+        <div class="agenda-toolbar-title">Agenda do Dia</div>
+        <button class="ag-icon-btn" title="Importar CSV do Zappy" onclick="document.getElementById('agenda-zappy-input').click()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </button>
+        <button class="ag-icon-btn" title="Adicionar marcação" onclick="openAgAddModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <input type="file" id="agenda-zappy-input" accept=".xlsx,.xls,.csv" onchange="handleZappyImport(this)" style="display:none"/>
+      </div>
+      <div class="agenda-stats">
+        <div class="ag-stat"><div class="ag-stat-val" id="ag-total">0</div><div class="ag-stat-lbl">Marcações</div></div>
+        <div class="ag-stat"><div class="ag-stat-val" id="ag-done" style="color:var(--green)">0</div><div class="ag-stat-lbl">Vieram</div></div>
+        <div class="ag-stat"><div class="ag-stat-val" id="ag-revenue" style="color:var(--gold2)">0€</div><div class="ag-stat-lbl">Recebido</div></div>
+      </div>
+      <div id="agenda-list"></div>
+    </div>
+
+    <!-- ANÁLISE -->
+    <div class="view" id="view-analise">
+      <div class="period-toggle">
+        <button class="period-btn active" onclick="setPeriod('week',this)">Semana</button>
+        <button class="period-btn" onclick="setPeriod('month',this)">Mês</button>
+        <button class="period-btn" onclick="setPeriod('quarter',this)">Trimestre</button>
+        <button class="period-btn" onclick="setPeriod('year',this)">Ano</button>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-header">
+          <div class="chart-title">Evolução Diária</div>
+          <div class="chart-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Fat.</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>N.Fat.</div>
+          </div>
+        </div>
+        <div class="bar-chart" id="bar-chart"></div>
+      </div>
+      <div class="grid2">
+        <div class="card green"><div class="card-label">Total Fat.</div><div class="card-val" id="a-fat">0€</div><div class="card-sub" id="a-fat-n">0 registos</div></div>
+        <div class="card red"><div class="card-label">Não Fat.</div><div class="card-val" id="a-nfat">0€</div><div class="card-sub" id="a-nfat-n">0 registos</div></div>
+      </div>
+      <div class="sec-title">📊 Comparação</div>
+      <div class="period-toggle" style="margin-bottom:14px">
+        <button class="period-btn active" onclick="setComparePeriod('month',this)">Mês Anterior</button>
+        <button class="period-btn" onclick="setComparePeriod('quarter',this)">Trimestre</button>
+        <button class="period-btn" onclick="setComparePeriod('year',this)">Ano</button>
+      </div>
+      <div id="compare-wrap"></div>
+      <div class="sec-title">🏆 Ranking de Serviços</div>
+      <div class="cat-rank-list" id="cat-rank"></div>
+      <div class="sec-title">👩 Por Funcionária</div>
+      <div class="hist-filter" id="analise-staff-filter"></div>
+      <div id="staff-cards"></div>
+    </div>
+
+    <!-- CLIENTES -->
+    <div class="view" id="view-clients">
+      <input class="client-search" id="client-search" type="text" placeholder="🔍 Pesquisar cliente..." oninput="renderClients()" autocomplete="off"/>
+      <div id="clients-list"></div>
+    </div>
+
+    <!-- HISTÓRICO -->
+    <div class="view" id="view-hist">
+      <div class="sec-title">Filtrar por Funcionária</div>
+      <div class="hist-filter" id="hist-staff-filter"></div>
+      <div class="entries-list" id="hist-list"></div>
+    </div>
+
+    <!-- EQUIPA -->
+    <div class="view" id="view-equipa">
+      <div id="equipa-content"></div>
+    </div>
+
+    <!-- CONFIG -->
+    <div class="view" id="view-cfg">
+      <div class="sec-title">Sincronização Firebase</div>
+      <div class="firebase-config" id="firebase-section">
+        <div class="firebase-config-title">🔥 Configurar Firebase (sincronização entre dispositivos)</div>
+        <div id="firebase-status" style="font-size:11px;color:var(--text2);margin-bottom:12px">Não configurado — dados guardados localmente</div>
+        <div class="firebase-field"><label>API Key</label><input id="fb-apiKey" placeholder="AIza..."/></div>
+        <div class="firebase-field"><label>Database URL</label><input id="fb-dbURL" placeholder="https://....firebaseio.com"/></div>
+        <div class="firebase-field"><label>Project ID</label><input id="fb-projectId" placeholder="meu-projeto"/></div>
+        <div class="firebase-field"><label>App ID</label><input id="fb-appId" placeholder="1:123:web:abc"/></div>
+        <button class="firebase-save-btn" onclick="saveFirebaseConfig()">💾 Guardar e Activar</button>
+      </div>
+
+      <div class="sec-title">Dados</div>
+      <div class="setting-row">
+        <div><div class="setting-label">Sónia Reis · Estética</div><div class="setting-sub" id="cfg-count">0 registos · 0€ total</div></div>
+        <button class="setting-action" onclick="exportCSV()">↓ CSV</button>
+      </div>
+      <input type="file" id="import-file-input" accept=".xlsx,.xls,.csv" onchange="handleImportFile(this)" style="display:none"/>
+      <button class="import-btn" onclick="document.getElementById('import-file-input').click()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Importar Excel / CSV
+      </button>
+
+      <div class="sec-title">Funcionárias</div>
+      <div id="staff-list-cfg" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px"></div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input id="new-staff-input" type="text" placeholder="Nome da funcionária" style="flex:1;padding:11px 14px;background:var(--s2);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-family:'Syne',sans-serif;font-size:14px;font-weight:600;outline:none"/>
+        <button onclick="addStaffMember()" style="flex-shrink:0;padding:11px 16px;background:var(--gold-d);border:2px solid var(--gold);border-radius:10px;color:var(--gold2);font-family:'Syne',sans-serif;font-size:13px;font-weight:800;cursor:pointer">+ Adicionar</button>
+      </div>
+
+      <div class="sec-title">Instalar no iPhone</div>
+      <div class="install-steps">
+        <div class="install-step"><span class="install-num">01</span><span>Abre este link no <strong>Safari</strong> do iPhone</span></div>
+        <div class="install-step"><span class="install-num">02</span><span>Toca no ícone de <strong>Partilhar</strong> (caixa com seta ↑)</span></div>
+        <div class="install-step"><span class="install-num">03</span><span>Escolhe <strong>"Adicionar ao Ecrã Inicial"</strong></span></div>
+        <div class="install-step"><span class="install-num">04</span><span>Confirma com <strong>Adicionar</strong></span></div>
+      </div>
+      <button class="danger-btn" onclick="confirmClear()">🗑 Apagar todos os dados</button>
+    </div>
+  </div>
+
+  <!-- FAB -->
+  <button class="fab" onclick="openModal()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+
+  <!-- BOTTOM NAV -->
+  <nav class="nav">
+    <button class="nav-btn active" id="nb-hoje" onclick="showView('hoje')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>HOJE
+    </button>
+    <button class="nav-btn" id="nb-agenda" onclick="showView('agenda')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>AGENDA
+    </button>
+    <button class="nav-btn" id="nb-analise" onclick="showView('analise')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>ANÁLISE
+    </button>
+    <button class="nav-btn" id="nb-clients" onclick="showView('clients')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>CLIENTES
+    </button>
+    <button class="nav-btn" id="nb-hist" onclick="showView('hist')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>HISTÓRICO
+    </button>
+    <button class="nav-btn" id="nb-equipa" onclick="showView('equipa')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="23" y2="17"/><line x1="20" y1="14" x2="26" y2="14"/></svg>EQUIPA
+    </button>
+    <button class="nav-btn" id="nb-cfg" onclick="showView('cfg')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>CONFIG
+    </button>
+  </nav>
+</div>
+
+<!-- NEW ENTRY MODAL -->
+<div class="modal-bg" id="modal-bg" onclick="bgClick(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Novo Registo</div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Tipo</label>
+        <div class="type-toggle">
+          <button class="type-btn active-fat" id="btn-fat" onclick="setType('fat')">✓ Faturado</button>
+          <button class="type-btn" id="btn-nfat" onclick="setType('nfat')">✕ Não Faturado</button>
+        </div>
+      </div>
+      <div class="field"><label>Categoria</label><div class="cat-scroll" id="cat-chips"></div></div>
+      <div class="field"><label>Serviços <span style="color:var(--text3);font-weight:400;font-size:9px">(toca para adicionar)</span></label><div class="service-grid" id="svc-grid"></div></div>
+      <div class="field"><label>Selecionados</label><div class="basket" id="basket"><span class="basket-empty">Nenhum serviço selecionado</span></div></div>
+      <div class="field">
+        <label>Serviço livre <span style="color:var(--text3);font-weight:400;font-size:9px">(opcional — se não está na lista)</span></label>
+        <div style="display:flex;gap:8px">
+          <input class="finput" type="text" id="free-svc-name" placeholder="Nome do serviço ou produto" style="flex:1"/>
+          <div class="price-wrap" style="width:90px;flex-shrink:0">
+            <span class="price-symbol" style="font-size:14px">€</span>
+            <input class="finput" type="number" id="free-svc-val" inputmode="decimal" placeholder="0" step="0.5" min="0" style="padding-left:26px"/>
+          </div>
+          <button onclick="addFreeService()" style="flex-shrink:0;padding:0 12px;background:var(--gold-d);border:1px solid var(--gold);border-radius:10px;color:var(--gold2);font-family:'Syne',sans-serif;font-size:13px;font-weight:800;cursor:pointer">+</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Nome do Cliente <span style="color:var(--text3);font-weight:400;font-size:9px">(opcional)</span></label>
+        <input class="finput" type="text" id="entry-client-name" placeholder="Ex: Maria Silva" autocomplete="off" list="clients-datalist"/>
+        <datalist id="clients-datalist"></datalist>
+      </div>
+      <div style="display:none"><select id="staff-select"></select></div>
+      <button class="save-btn" onclick="saveEntry()">Guardar Registo</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT ENTRY MODAL -->
+<div class="edit-modal-bg" id="edit-modal-bg" onclick="editBgClick(event)">
+  <div class="edit-modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Editar Registo</div>
+    <div class="modal-body">
+      <div class="field"><label>Data</label><input class="finput" type="date" id="edit-date"/></div>
+      <div class="field"><label>Hora</label><input class="finput" type="time" id="edit-time"/></div>
+      <div class="field"><label>Serviço</label><input class="finput" type="text" id="edit-svc"/></div>
+      <div class="field"><label>Categoria</label><select class="finput" id="edit-cat"></select></div>
+      <div class="field"><label>Valor (€)</label><div class="price-wrap"><span class="price-symbol">€</span><input class="price-input finput" type="number" id="edit-val" inputmode="decimal" step="0.5" min="0"/></div></div>
+      <div class="field"><label>Tipo</label>
+        <div class="type-toggle">
+          <button class="type-btn active-fat" id="edit-btn-fat" onclick="setEditType('fat')">✓ Faturado</button>
+          <button class="type-btn" id="edit-btn-nfat" onclick="setEditType('nfat')">✕ Não Faturado</button>
+        </div>
+      </div>
+      <div class="field"><label>Funcionária</label><select class="finput" id="edit-staff"></select></div>
+      <button class="save-btn" onclick="saveEditEntry()">Guardar Alterações</button>
+    </div>
+  </div>
+</div>
+
+<!-- AGENDA ADD MODAL -->
+<div class="modal-bg" id="ag-add-modal-bg" onclick="agAddBgClick(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Nova Marcação</div>
+    <div class="modal-body">
+      <div class="field"><label>Hora</label><input class="finput" type="time" id="ag-time" value="10:00"/></div>
+      <div class="field"><label>Nome do Cliente</label><input class="finput" type="text" id="ag-name" placeholder="Ex: Maria Silva" autocomplete="off"/></div>
+      <div class="field"><label>Categoria</label><div class="cat-scroll" id="ag-cat-chips"></div></div>
+      <div class="field"><label>Serviço</label><div class="service-grid" id="ag-svc-grid"></div></div>
+      <div class="field"><label>Preço Previsto (€)</label><div class="price-wrap"><span class="price-symbol">€</span><input class="price-input finput" type="number" id="ag-price" inputmode="decimal" placeholder="0,00" step="0.5" min="0"/></div></div>
+      <div class="field"><label>Funcionária</label><select class="finput" id="ag-staff"></select></div>
+      <button class="save-btn" onclick="saveAgAppointment()">Guardar Marcação</button>
+    </div>
+  </div>
+</div>
+
+<!-- CLIENT DETAIL MODAL -->
+<div class="client-modal-bg" id="client-modal-bg" onclick="clientModalBgClick(event)">
+  <div class="client-modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="client-modal-title">Cliente</div>
+    <div class="modal-body" id="client-modal-body"></div>
+  </div>
+</div>
+
+<!-- IMPORT MODAL -->
+<div class="import-modal-bg" id="import-modal-bg">
+  <div class="import-modal">
+    <div class="import-modal-title">Importar Ficheiro</div>
+    <div class="import-modal-sub" id="import-sub">Faz corresponder as colunas.</div>
+    <div class="col-map" id="col-map"></div>
+    <div class="import-preview" id="import-preview">—</div>
+    <div class="import-actions">
+      <button class="import-cancel" onclick="closeImportModal()">Cancelar</button>
+      <button class="import-confirm" id="import-confirm-btn" onclick="confirmImport()" disabled>Importar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Scripts — ordem importante -->
+<script src="app.js"></script>
+<script src="hr.js"></script>
+<script src="firebase.js"></script>
+
+</body>
+</html>
