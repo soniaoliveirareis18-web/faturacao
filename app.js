@@ -106,7 +106,7 @@ const persistPins   = () => localStorage.setItem('sr_pins',   JSON.stringify(use
 //  BOOT
 // ═══════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
-
+  if(typeof setupHRDelegation === 'function') setupHRDelegation();
   const now = new Date();
   const dateStr = now.toLocaleDateString('pt-PT',{day:'numeric',month:'short',year:'numeric'});
   document.getElementById('todayLabel') && (document.getElementById('todayLabel').textContent = dateStr);
@@ -191,6 +191,7 @@ function checkPin() {
     document.getElementById('login-screen').style.display = 'none';
     if (role === 'owner') {
       document.getElementById('owner-mode').style.display = 'block';
+      if(typeof setupHRDelegation === 'function') setupHRDelegation();
       renderAll();
       setTimeout(showPendingAlert, 300);
     } else {

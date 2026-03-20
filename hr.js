@@ -59,9 +59,14 @@ function setupHRDelegation(){
 
   // Use equipa-content as the root — it always exists once owner logs in
   document.addEventListener('click', function hrHandler(e){
-    // Only process if equipa tab is active
-    const equipaView = document.getElementById('view-equipa');
-    if(!equipaView || !equipaView.classList.contains('active')) return;
+    // Only process if we're in owner mode and equipa content is visible
+    const equipaContent = document.getElementById('equipa-content');
+    const staffEquipa   = document.getElementById('staff-equipa-view');
+    const inOwnerEquipa = equipaContent && document.getElementById('owner-mode')?.style.display==='block';
+    const inStaffEquipa = staffEquipa && staffEquipa.style.display!=='none';
+    if(!inOwnerEquipa && !inStaffEquipa) return;
+    // Make sure the click is inside equipa content
+    if(!e.target.closest('#equipa-content, #staff-equipa-view, #folga-picker-overlay')) return;
 
     // ── Calendar: folga day ──
     const folgaDay = e.target.closest('[data-folga-date]');
