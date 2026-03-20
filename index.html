@@ -399,6 +399,14 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .staff-total-val{font-family:'DM Mono',monospace;font-size:36px;color:var(--gold2);letter-spacing:-2px}
 .staff-reg-btn{width:100%;padding:18px;border-radius:14px;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;color:#100e0c;font-family:'Syne',sans-serif;font-size:17px;font-weight:800;cursor:pointer;margin-bottom:16px}
  
+/* BADGES */
+.nav-badge{position:absolute;top:6px;right:50%;transform:translateX(10px);background:var(--red);color:#fff;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;pointer-events:none}
+.nav-btn{position:relative}
+.alert-banner{background:var(--gold-d);border:1px solid var(--gold);border-radius:12px;padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;cursor:pointer}
+.alert-banner-icon{font-size:20px;flex-shrink:0}
+.alert-banner-text{font-size:12px;font-weight:700;color:var(--gold2);flex:1}
+.alert-banner-sub{font-size:10px;color:var(--text2);margin-top:2px;font-weight:400}
+ 
 /* HR MODULE */
 .hr-tabs{display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;scrollbar-width:none}
 .hr-tabs::-webkit-scrollbar{display:none}
@@ -1008,6 +1016,7 @@ function checkPin() {
     if (role === 'owner') {
       document.getElementById('owner-mode').style.display = 'block';
       renderAll();
+      setTimeout(showPendingAlert, 300);
     } else {
       document.getElementById('staff-mode').style.display = 'block';
       document.getElementById('staff-mode-topname').textContent = 'Olá, ' + name + '!';
@@ -2093,27 +2102,84 @@ function renderHRTab(){
 }
  
 // ── HORAS ────────────────────────────────────────────────
+function calcHourBalance(hr){
+  // Total approved hours worked
+  const worked = hr.hours.filter(h=>h.approved).reduce((a,h)=>a+h.total,0);
+  // Total hours deducted via approved compensations
+  const deducted = (hr.compensations||[]).filter(c=>c.status==='approved').reduce((a,c)=>a+c.hours,0);
+  return Math.round((worked - deducted)*10)/10;
+}
+ 
 function renderHorasTab(hr, isOwner){
   const now = new Date();
   const monthKey = now.getFullYear()+'-'+(now.getMonth()+1).toString().padStart(2,'0');
-  const monthHours = hr.hours.filter(h=>h.date.startsWith(monthKey));
-  const totalMonth = monthHours.reduce((a,h)=>a+(h.approved?h.total:0),0);
+  const monthHours = hr.hours.filter(h=>h.date.startsWith(monthKey)&&h.approved);
+  const totalMonth = monthHours.reduce((a,h)=>a+h.total,0);
   const pending    = hr.hours.filter(h=>!h.approved&&!h.rejected);
+  const balance    = calcHourBalance(hr);
+  const pendingComp= (hr.compensations||[]).filter(c=>c.status==='pending');
  
   let html = `
-    <div class="hr-card" style="margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div><div class="card-label">Total aprovado este mês</div><div style="font-family:'DM Mono',monospace;font-size:28px;color:var(--gold2)">${totalMonth.toFixed(1)}h</div></div>
-        <div style="text-align:right"><div class="card-label">Pendentes</div><div style="font-family:'DM Mono',monospace;font-size:20px;color:var(--gold)">${pending.length}</div></div>
+    <div class="grid2" style="margin-bottom:10px">
+      <div class="card gold">
+        <div class="card-label">Este mês</div>
+        <div class="card-val">${totalMonth.toFixed(1)}h</div>
+        <div class="card-sub">${pending.length} pendente${pending.length!==1?'s':''}</div>
+      </div>
+      <div class="card ${balance>=0?'green':'red'}">
+        <div class="card-label">Saldo extra</div>
+        <div class="card-val">${balance>=0?'+':''}${balance}h</div>
+        <div class="card-sub">acumulado total</div>
       </div>
     </div>`;
  
-  html += `<button class="hr-add-btn" onclick="openAddHoursModal()">+ Registar Horas</button>`;
+  html += `<div style="display:flex;gap:8px;margin-bottom:10px">
+    <button class="hr-add-btn" style="flex:1;margin-bottom:0" onclick="openAddHoursModal()">+ Registar Horas</button>
+    ${balance>0?`<button class="hr-add-btn" style="flex:1;margin-bottom:0;border-color:var(--blue);color:var(--blue);background:var(--blue-d)" onclick="openCompensationModal()">🌙 Pedir Folga</button>`:''}
+  </div>`;
  
+  // Pending compensations for owner to approve
+  if(isOwner && pendingComp.length){
+    html+=`<div class="sec-title">🟡 Pedidos de Folga Pendentes</div>`;
+    pendingComp.forEach(c=>{
+      html+=`<div class="hr-card" style="margin-bottom:8px;border-color:var(--gold)">
+        <div class="hr-card-header">
+          <div>
+            <div style="font-size:13px;font-weight:700">${c.type==='full'?'Dia completo':'Meio-dia'} — ${fmtD(c.date)}</div>
+            <div style="font-size:11px;color:var(--text2)">${c.hours}h a descontar do saldo</div>
+            ${c.note?`<div style="font-size:10px;color:var(--text2);font-style:italic">${c.note}</div>`:''}
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:16px;color:var(--gold)">-${c.hours}h</div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="hr-approve-btn approve" onclick="approveCompensation('${hrStaff}','${c.id}',true)">✓ Aprovar</button>
+          <button class="hr-approve-btn reject" onclick="approveCompensation('${hrStaff}','${c.id}',false)">✕ Recusar</button>
+        </div>
+      </div>`;
+    });
+  }
+ 
+  // Approved compensations
+  const approvedComp=(hr.compensations||[]).filter(c=>c.status==='approved');
+  if(approvedComp.length){
+    html+=`<div class="sec-title">✅ Folgas Aprovadas</div>`;
+    approvedComp.sort((a,b)=>b.date.localeCompare(a.date)).forEach(c=>{
+      html+=`<div class="hr-card" style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:13px;font-weight:700">${c.type==='full'?'Dia completo':'Meio-dia'} — ${fmtD(c.date)}</div>
+            ${c.note?`<div style="font-size:10px;color:var(--text2);font-style:italic">${c.note}</div>`:''}
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:15px;color:var(--red)">-${c.hours}h</div>
+        </div>
+      </div>`;
+    });
+  }
+ 
+  html+=`<div class="sec-title">📋 Registos de Horas</div>`;
   if(hr.hours.length===0){
     html+=`<div class="empty-state"><div class="empty-icon">⏱</div>Sem registos de horas ainda.</div>`;
   } else {
-    // Group by month
     const groups={};
     hr.hours.forEach(h=>{ const m=h.date.slice(0,7); (groups[m]=groups[m]||[]).push(h); });
     Object.entries(groups).sort((a,b)=>b[0].localeCompare(a[0])).forEach(([month,items])=>{
@@ -2147,6 +2213,31 @@ function renderHorasTab(hr, isOwner){
   return html;
 }
  
+function openCompensationModal(){
+  const hr=getHR(hrStaff);
+  const balance=calcHourBalance(hr);
+  if(balance<=0){ showToast('Sem saldo de horas extra.','error'); return; }
+  const type=confirm('Dia completo?
+OK = Dia completo  |  Cancelar = Meio-dia')?'full':'half';
+  const hours=type==='full'?8:4;
+  if(balance<hours){ showToast(`Saldo insuficiente (${balance}h disponíveis, precisas de ${hours}h).`,'error'); return; }
+  const dateRaw=prompt('Data da folga (DD/MM/AAAA):'); if(!dateRaw) return;
+  const note=prompt('Nota (opcional):')||'';
+  const comp={id:Date.now()+'',date:parseDate(dateRaw),type,hours,note,status:'pending'};
+  hr.compensations=hr.compensations||[];
+  hr.compensations.push(comp);
+  persistHR(); renderEquipa();
+  showToast('🟡 Pedido de folga enviado para aprovação!','success');
+}
+ 
+function approveCompensation(name,id,approve){
+  const hr=getHR(name);
+  const c=(hr.compensations||[]).find(x=>x.id===id); if(!c) return;
+  c.status=approve?'approved':'rejected';
+  persistHR(); renderEquipa(); updateBadges();
+  showToast(approve?'✓ Folga aprovada! 🌙':'Pedido recusado.', approve?'success':'error');
+}
+ 
 function openAddHoursModal(){
   const date=prompt('Data (DD/MM/AAAA):', new Date().toLocaleDateString('pt-PT'));
   if(!date) return;
@@ -2163,7 +2254,7 @@ function approveHours(name,id,approve){
   const hr=getHR(name);
   const h=hr.hours.find(x=>x.id===id); if(!h) return;
   h.approved=approve; h.rejected=!approve;
-  persistHR(); renderEquipa();
+  persistHR(); renderEquipa(); updateBadges();
   showToast(approve?'✓ Horas aprovadas!':'Horas recusadas.', approve?'success':'error');
 }
  
@@ -2267,7 +2358,7 @@ function toggleVacationDay(name, dateStr){
   }
   // Add new pending vacation day
   hr.vacations.push({id:Date.now()+'',dates:[dateStr],status:'pending',note:''});
-  persistHR(); renderEquipa();
+  persistHR(); renderEquipa(); updateBadges();
   showToast('🟡 Pedido enviado para aprovação!','success');
 }
  
@@ -2275,7 +2366,7 @@ function approveVacation(name,id,approve){
   const hr=getHR(name);
   const v=hr.vacations.find(x=>x.id===id); if(!v) return;
   v.status=approve?'approved':'rejected';
-  persistHR(); renderEquipa();
+  persistHR(); renderEquipa(); updateBadges();
   showToast(approve?'✓ Férias aprovadas! 🌴':'Férias recusadas.', approve?'success':'error');
 }
  
@@ -2370,7 +2461,55 @@ function showToast(msg,type='success'){
 // ═══════════════════════════════════════════════════════════
 //  RENDER ALL
 // ═══════════════════════════════════════════════════════════
-function renderAll(){ renderHoje(); renderCfg(); }
+function renderAll(){ renderHoje(); renderCfg(); updateBadges(); }
+ 
+function countPendingHR(){
+  let total=0;
+  staff.forEach(s=>{
+    const hr=getHR(s);
+    total += hr.hours.filter(h=>!h.approved&&!h.rejected).length;
+    total += (hr.vacations||[]).filter(v=>v.status==='pending').length;
+    total += (hr.compensations||[]).filter(c=>c.status==='pending').length;
+  });
+  return total;
+}
+ 
+function updateBadges(){
+  if(currentRole!=='owner') return;
+  const count=countPendingHR();
+  // Remove existing badges
+  document.querySelectorAll('.nav-badge').forEach(b=>b.remove());
+  if(count>0){
+    const btn=document.getElementById('nb-equipa');
+    if(btn){
+      const badge=document.createElement('div');
+      badge.className='nav-badge';
+      badge.textContent=count>9?'9+':count;
+      btn.appendChild(badge);
+    }
+  }
+}
+ 
+function showPendingAlert(){
+  if(currentRole!=='owner') return;
+  const count=countPendingHR();
+  if(count===0) return;
+  // Show banner at top of HOJE view
+  const list=document.getElementById('hoje-list');
+  const existing=document.getElementById('pending-alert-banner');
+  if(existing) existing.remove();
+  const banner=document.createElement('div');
+  banner.id='pending-alert-banner';
+  banner.className='alert-banner';
+  banner.innerHTML=`<div class="alert-banner-icon">🔔</div>
+    <div>
+      <div class="alert-banner-text">${count} pedido${count!==1?'s':''} pendente${count!==1?'s':''}</div>
+      <div class="alert-banner-sub">Horas, férias ou folgas a aguardar aprovação</div>
+    </div>
+    <div style="font-size:12px;color:var(--gold);font-weight:700">Ver →</div>`;
+  banner.onclick=()=>showView('equipa');
+  if(list) list.parentNode.insertBefore(banner, list);
+}
 </script>
 </body>
 </html>
