@@ -77,6 +77,14 @@ function setupHRDelegation(){
     // Only process if click is inside equipa area or folga picker
     if(!e.target.closest('#equipa-content, #staff-equipa-view, #folga-picker-overlay')) return;
 
+    // ── Calendar: toggle exceptional day (owner only) ──
+    const excToggle = e.target.closest('[data-toggle-exceptional]');
+    if(excToggle){ toggleExceptionalDay(excToggle.dataset.toggleExceptional); return; }
+
+    // ── Calendar: exceptional day clicked by staff ──
+    const excDay = e.target.closest('[data-exceptional]');
+    if(excDay){ openExceptionalHoursModal(excDay.dataset.exceptional); return; }
+
     // ── Calendar: folga day ──
     const folgaDay = e.target.closest('[data-folga-date]');
     if(folgaDay){ showFolgaTypePicker(folgaDay.dataset.folgaDate); return; }
@@ -114,6 +122,11 @@ function setupHRDelegation(){
     if(action==='reject-vac')     { approveVacation(s, id, false); return; }
     if(action==='cancel-folga')   { hrFolgaMode=false; renderEquipa(); return; }
 
+    // Saída antecipada
+    if(action==='add-early')      { openEarlyDepartureModal(); return; }
+    if(action==='approve-early')  { approveEarlyDeparture(s, id, true); return; }
+    if(action==='reject-early')   { approveEarlyDeparture(s, id, false); return; }
+
     // Formação
     if(action==='add-training')   { openAddTrainingModal(); return; }
     if(action==='del-training')   { deleteTraining(s, id); return; }
@@ -132,11 +145,11 @@ function renderHRTab(){
 
 // ── HORAS ────────────────────────────────────────────────
 function calcHourBalance(hr){
-  // Total approved hours worked
-  const worked = hr.hours.filter(h=>h.approved).reduce((a,h)=>a+h.total,0);
-  // Total hours deducted via approved compensations
+  const worked   = hr.hours.filter(h=>h.approved).reduce((a,h)=>a+h.total,0);
   const deducted = (hr.compensations||[]).filter(c=>c.status==='approved').reduce((a,c)=>a+c.hours,0);
-  return Math.round((worked - deducted)*10)/10;
+  // Early departures that are approved also deduct
+  const earlyDep = (hr.earlyDepartures||[]).filter(e=>e.approved).reduce((a,e)=>a+e.hours,0);
+  return Math.round((worked - deducted - earlyDep)*10)/10;
 }
 
 function renderHorasTab(hr, isOwner){
@@ -162,10 +175,45 @@ function renderHorasTab(hr, isOwner){
       </div>
     </div>`;
 
-  html += `<div style="display:flex;gap:8px;margin-bottom:10px">
-    <button class="hr-add-btn" style="flex:1;margin-bottom:0" data-action="add-hours">+ Registar Horas</button>
-    ${balance>0?`<button class="hr-add-btn" style="flex:1;margin-bottom:0;border-color:var(--blue);color:var(--blue);background:var(--blue-d)" data-action="add-comp">🌙 Pedir Folga</button>`:''}
-  </div>`;
+  html += `<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+    <button class="hr-add-btn" style="flex:1;margin-bottom:0;min-width:140px" data-action="add-hours">+ Registar Horas</button>
+    ${balance>0?`<button class="hr-add-btn" style="flex:1;margin-bottom:0;min-width:120px;border-color:var(--blue);color:var(--blue);background:var(--blue-d)" data-action="add-comp">🌙 Pedir Folga</button>`:''}
+  </div>
+  <button class="hr-add-btn" style="margin-bottom:10px;border-color:var(--red);color:var(--red);background:var(--red-d)" data-action="add-early">⏰ Saí mais cedo</button>`;
+
+  // Early departures
+  const pendingEarly  = (hr.earlyDepartures||[]).filter(e=>!e.approved&&!e.rejected);
+  const approvedEarly = (hr.earlyDepartures||[]).filter(e=>e.approved);
+  if(isOwner && pendingEarly.length){
+    html+=`<div class="sec-title">🟡 Saídas Antecipadas Pendentes</div>`;
+    pendingEarly.forEach(e=>{
+      html+=`<div class="hr-card" style="margin-bottom:8px;border-color:var(--red)">
+        <div class="hr-card-header">
+          <div>
+            <div style="font-size:13px;font-weight:700">⏰ Saída antecipada — ${fmtD(e.date)}</div>
+            <div style="font-size:11px;color:var(--text2)">-${e.hours}h ${e.note?'· '+e.note:''}</div>
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:16px;color:var(--red)">-${e.hours}h</div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="hr-approve-btn approve" data-action="approve-early" data-id="${e.id}" data-staff="${hrStaff}">✓ Aprovar</button>
+          <button class="hr-approve-btn reject" data-action="reject-early" data-id="${e.id}" data-staff="${hrStaff}">✕ Recusar</button>
+        </div>
+      </div>`;
+    });
+  }
+  if(approvedEarly.length){
+    html+=`<div class="sec-title">⏰ Saídas Antecipadas Aprovadas</div>`;
+    approvedEarly.sort((a,b)=>b.date.localeCompare(a.date)).forEach(e=>{
+      html+=`<div class="hr-card" style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><div style="font-size:13px;font-weight:700">${fmtD(e.date)}</div>
+          ${e.note?`<div style="font-size:10px;color:var(--text2)">${e.note}</div>`:''}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:15px;color:var(--red)">-${e.hours}h</div>
+        </div>
+      </div>`;
+    });
+  }
 
   // Pending compensations for owner to approve
   if(isOwner && pendingComp.length){
@@ -249,23 +297,49 @@ const FOLGA_TYPES = {
   manha: { label:'Manhã (9h-12h)', hours:3, color:'#9b59b6', colorD:'rgba(155,89,182,.18)', emoji:'🟣' },
   tarde: { label:'Tarde (14h-19h)', hours:5, color:'#e67e22', colorD:'rgba(230,126,34,.18)', emoji:'🟠' },
 };
-const WORK_DAYS = [1,2,3,5];    // Seg/Ter/Qua/Sex — válidos para folgas por horas extra
-const OPEN_DAYS = [1,2,3,4,5,6]; // Seg a Sáb — estabelecimento aberto (válido para férias)
-// Encerrado: Domingo (0) e Quinta (4) — nota: Quinta está incluída em OPEN_DAYS para férias
-// Encerrado apenas ao Domingo para férias; Quinta e Domingo fechados para folgas
-// Corrected: establishment closed Thu+Sun, so OPEN_DAYS = Mon,Tue,Wed,Fri,Sat
-const VACATION_DAYS = [1,2,3,5,6]; // Seg/Ter/Qua/Sex/Sáb — válidos para marcar férias
+const WORK_DAYS     = [1,2,3,5];   // Seg/Ter/Qua/Sex — folgas por horas extra
+const VACATION_DAYS = [1,2,3,5,6]; // Seg/Ter/Qua/Sex/Sáb — marcar férias
 
-function isWorkDay(dateStr){
-  // Used for folgas only (Seg/Ter/Qua/Sex)
-  const d = new Date(dateStr+'T12:00:00');
-  return WORK_DAYS.includes(d.getDay());
+// Portuguese public holidays (MM-DD format, fixed)
+const PT_HOLIDAYS_FIXED = ['01-01','04-25','05-01','06-10','08-15','10-05','11-01','12-01','12-08','12-25'];
+
+function getPTHolidays(year){
+  const h = new Set(PT_HOLIDAYS_FIXED.map(d => year+'-'+d));
+  // Easter-based: Carnival(-47), Good Friday(-2), Corpus Christi(+60)
+  const easter = getEaster(year);
+  const addDays = (d,n) => { const r=new Date(d); r.setDate(r.getDate()+n); return r.toISOString().slice(0,10); };
+  h.add(addDays(easter, -47)); // Carnaval
+  h.add(addDays(easter, -2));  // Sexta-feira Santa
+  h.add(addDays(easter,  60)); // Corpo de Deus
+  return h;
 }
 
-function isVacationDay(dateStr){
-  // Used for vacation marking (Seg/Ter/Qua/Sex/Sáb)
-  const d = new Date(dateStr+'T12:00:00');
-  return VACATION_DAYS.includes(d.getDay());
+function getEaster(year){
+  // Anonymous Gregorian algorithm
+  const a=year%19, b=Math.floor(year/100), c=year%100;
+  const d=Math.floor(b/4), e=b%4, f=Math.floor((b+8)/25);
+  const g=Math.floor((b-f+1)/3), h=(19*a+b-d-g+15)%30;
+  const i=Math.floor(c/4), k=c%4, l=(32+2*e+2*i-h-k)%7;
+  const m=Math.floor((a+11*h+22*l)/451);
+  const month=Math.floor((h+l-7*m+114)/31);
+  const day=((h+l-7*m+114)%31)+1;
+  return new Date(year,month-1,day).toISOString().slice(0,10);
+}
+
+function isHoliday(dateStr, year){ return getPTHolidays(year).has(dateStr); }
+function isWorkDay(dateStr){ return WORK_DAYS.includes(new Date(dateStr+'T12:00:00').getDay()); }
+function isVacationDay(dateStr){ return VACATION_DAYS.includes(new Date(dateStr+'T12:00:00').getDay()); }
+
+// Exceptional days: stored globally (shared across all staff)
+// hrData._exceptional = { 'YYYY-MM-DD': true }
+function getExceptionalDays(){ return hrData._exceptional || {}; }
+function isExceptionalDay(ds){ return !!getExceptionalDays()[ds]; }
+function toggleExceptionalDay(ds){
+  if(!hrData._exceptional) hrData._exceptional = {};
+  if(hrData._exceptional[ds]){ delete hrData._exceptional[ds]; }
+  else { hrData._exceptional[ds] = true; }
+  persistHR();
+  renderEquipa();
 }
 
 // Called from "Pedir Folga" button — switches to férias tab showing folga calendar
@@ -320,6 +394,109 @@ function approveCompensation(name,id,approve){
   c.status=approve?'approved':'rejected';
   persistHR(); renderEquipa(); updateBadges();
   showToast(approve?'✓ Folga aprovada! 🌙':'Pedido recusado.', approve?'success':'error');
+}
+
+// ── Early departure ─────────────────────────────────────────
+function openEarlyDepartureModal(){
+  const existing = document.getElementById('early-modal-overlay');
+  if(existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'early-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:600;background:rgba(10,8,6,.88);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:var(--s1);border:1px solid var(--border2);border-radius:24px 24px 0 0;width:100%;padding:0 0 calc(env(safe-area-inset-bottom)+16px);animation:slideUp .25s cubic-bezier(.4,0,.2,1)">
+      <div style="width:36px;height:4px;background:var(--border2);border-radius:2px;margin:12px auto 16px"></div>
+      <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:22px;color:var(--red);padding:0 18px 16px;border-bottom:1px solid var(--border)">⏰ Saída Antecipada</div>
+      <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2)">Data</label>
+          <input id="ed-date" type="date" value="${new Date().toISOString().slice(0,10)}" style="background:var(--s2);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-family:'Syne',sans-serif;font-size:15px;font-weight:600;padding:12px 14px;width:100%;outline:none"/>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2)">Horas que saí mais cedo</label>
+          <input id="ed-hours" type="number" inputmode="decimal" step="0.5" min="0.5" max="8" placeholder="Ex: 1.5"
+            style="background:var(--s2);border:1px solid var(--border2);border-radius:10px;color:var(--red);font-family:'DM Mono',monospace;font-size:22px;padding:12px 14px;width:100%;outline:none"/>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2)">Motivo (opcional)</label>
+          <input id="ed-note" type="text" placeholder="Ex: consulta médica"
+            style="background:var(--s2);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-family:'Syne',sans-serif;font-size:15px;font-weight:600;padding:12px 14px;width:100%;outline:none"/>
+        </div>
+        <div style="background:var(--red-d);border:1px solid var(--red);border-radius:10px;padding:10px 12px;font-size:11px;color:var(--red)">
+          ⚠️ Estas horas serão descontadas do teu saldo após aprovação da Sónia.
+        </div>
+        <button id="ed-save" style="width:100%;padding:15px;border-radius:12px;background:var(--red);border:none;color:#fff;font-family:'Syne',sans-serif;font-size:15px;font-weight:800;cursor:pointer">Submeter para Aprovação</button>
+        <button id="ed-cancel" style="width:100%;padding:11px;border-radius:12px;background:none;border:1px solid var(--border2);color:var(--text2);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer">Cancelar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', function(e){
+    if(e.target.id==='ed-cancel'||e.target===overlay){ overlay.remove(); return; }
+    if(e.target.id!=='ed-save') return;
+    const date  = document.getElementById('ed-date').value;
+    const hours = parseFloat(document.getElementById('ed-hours').value);
+    const note  = (document.getElementById('ed-note').value||'').trim();
+    if(!date){ showToast('Seleciona uma data.','error'); return; }
+    if(!hours||hours<=0){ showToast('Introduz um número de horas válido.','error'); return; }
+    const hr = getHR(hrStaff);
+    hr.earlyDepartures = hr.earlyDepartures||[];
+    const autoApprove = currentRole==='owner';
+    hr.earlyDepartures.push({id:Date.now()+'',date,hours,note,approved:autoApprove,rejected:false});
+    persistHR(); overlay.remove(); renderEquipa(); updateBadges();
+    showToast(autoApprove?'✓ Saída registada e aprovada!':'🟡 Submetido para aprovação da Sónia!','success');
+  });
+}
+
+function approveEarlyDeparture(name, id, approve){
+  const hr = getHR(name);
+  const e  = (hr.earlyDepartures||[]).find(x=>x.id===id); if(!e) return;
+  e.approved=approve; e.rejected=!approve;
+  persistHR(); renderEquipa(); updateBadges();
+  showToast(approve?'✓ Saída antecipada aprovada!':'Pedido recusado.', approve?'success':'error');
+}
+
+// ── Exceptional day hours modal ───────────────────────────
+function openExceptionalHoursModal(dateStr){
+  const existing = document.getElementById('exc-modal-overlay');
+  if(existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'exc-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:600;background:rgba(10,8,6,.88);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:var(--s1);border:1px solid var(--gold);border-radius:24px 24px 0 0;width:100%;padding:0 0 calc(env(safe-area-inset-bottom)+16px);animation:slideUp .25s cubic-bezier(.4,0,.2,1)">
+      <div style="width:36px;height:4px;background:var(--border2);border-radius:2px;margin:12px auto 16px"></div>
+      <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:22px;color:var(--gold2);padding:0 18px 16px;border-bottom:1px solid var(--border)">⭐ Dia Excecional — ${fmtD(dateStr)}</div>
+      <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+        <div style="background:var(--gold-d);border:1px solid var(--gold);border-radius:10px;padding:10px 12px;font-size:11px;color:var(--gold2)">
+          ⭐ Este é um dia excecional de trabalho. As horas registadas contam como horas extra.
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2)">Horas trabalhadas</label>
+          <input id="exc-hours" type="number" inputmode="decimal" step="0.5" min="0.5" max="24" placeholder="Ex: 8"
+            style="background:var(--s2);border:1px solid var(--border2);border-radius:10px;color:var(--gold2);font-family:'DM Mono',monospace;font-size:22px;padding:12px 14px;width:100%;outline:none"/>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2)">Nota (opcional)</label>
+          <input id="exc-note" type="text" placeholder="Ex: evento especial"
+            style="background:var(--s2);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-family:'Syne',sans-serif;font-size:15px;font-weight:600;padding:12px 14px;width:100%;outline:none"/>
+        </div>
+        <button id="exc-save" style="width:100%;padding:15px;border-radius:12px;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;color:#100e0c;font-family:'Syne',sans-serif;font-size:15px;font-weight:800;cursor:pointer">Registar Horas Extra</button>
+        <button id="exc-cancel" style="width:100%;padding:11px;border-radius:12px;background:none;border:1px solid var(--border2);color:var(--text2);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer">Cancelar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', function(e){
+    if(e.target.id==='exc-cancel'||e.target===overlay){ overlay.remove(); return; }
+    if(e.target.id!=='exc-save') return;
+    const hours = parseFloat(document.getElementById('exc-hours').value);
+    const note  = (document.getElementById('exc-note').value||'').trim();
+    if(!hours||hours<=0){ showToast('Introduz um número de horas válido.','error'); return; }
+    const hr = getHR(hrStaff);
+    const autoApprove = currentRole==='owner';
+    hr.hours.unshift({id:Date.now()+'',date:dateStr,total:hours,note:note||'Dia excecional',approved:autoApprove,rejected:false,exceptional:true});
+    persistHR(); overlay.remove(); renderEquipa(); updateBadges();
+    showToast(autoApprove?'✓ Horas extra registadas!':'🟡 Submetido para aprovação!','success');
+  });
 }
 
 function isWithin24h(dateStr){
@@ -474,58 +651,76 @@ function renderFeriasTab(hr, isOwner){
     for(let i=0;i<firstDay;i++) html+=`<div class="cal-day empty"></div>`;
     const daysInMonth=new Date(year,m+1,0).getDate();
     for(let d=1;d<=daysInMonth;d++){
-      const ds=year+'-'+(m+1).toString().padStart(2,'0')+'-'+d.toString().padStart(2,'0');
-      const isToday   = ds===today();
-      const isVacApp  = approved.includes(ds);
-      const isVacPend = pendingVac.includes(ds);
-      const folga     = folgaByDate[ds];
-      const wday      = new Date(ds+'T12:00:00').getDay();
-      const isWork    = WORK_DAYS.includes(wday);       // Seg/Ter/Qua/Sex — para folgas
-      const isVacOk   = VACATION_DAYS.includes(wday);  // Seg/Ter/Qua/Sex/Sáb — para férias
+      const ds       = year+'-'+(m+1).toString().padStart(2,'0')+'-'+d.toString().padStart(2,'0');
+      const isToday  = ds===today();
+      const isVacApp = approved.includes(ds);
+      const isVacPend= pendingVac.includes(ds);
+      const folga    = folgaByDate[ds];
+      const wday     = new Date(ds+'T12:00:00').getDay();
+      const isWork   = WORK_DAYS.includes(wday);
+      const isVacOk  = VACATION_DAYS.includes(wday);
+      const holiday  = isHoliday(ds, year);
+      const exceptional = isExceptionalDay(ds);
+      // Closed days: Thu(4) + Sun(0) unless exceptional
+      const isClosed = (wday===0 || wday===4) && !exceptional;
+      // Effectively open for vacations: vacation day OR exceptional, and not a holiday (unless exceptional)
+      const vacOkFinal = (isVacOk || exceptional) && (!holiday || exceptional);
 
-      let cls='', style='', title='';
+      let cls='', style='', label=String(d), title='', dataAttrs='';
+
       if(folga){
         const ft=FOLGA_TYPES[folga.type]||FOLGA_TYPES.full;
-        const alpha=folga.approved?'1':'0.5';
-        style=`background:${ft.colorD};border:2px solid ${ft.color};opacity:${alpha}`;
-        cls='cal-day';
-        title=ft.emoji+' '+ft.label+(folga.approved?' (aprovado)':' (pendente)');
+        style=`background:${ft.colorD};border:2px solid ${ft.color};opacity:${folga.approved?'1':'0.6'}`;
+        cls='cal-day'; title=ft.emoji+' '+ft.label+(folga.approved?' (aprovado)':' (pendente)');
       } else if(isVacApp){
         cls='cal-day vacation-approved'; title='Férias aprovadas';
       } else if(isVacPend){
         cls='cal-day vacation-pending'; title='Férias pendentes';
       } else if(isToday){
         cls='cal-day today-d';
+        if(exceptional) label='⭐'+d;
+        if(holiday && !exceptional) style='opacity:0.35'; title='Feriado';
+      } else if(exceptional){
+        // Exceptional day (owner unlocked Thu/Sun/holiday) — show with star
+        cls='cal-day'; style='background:rgba(245,200,66,.15);border:2px solid var(--gold);cursor:pointer';
+        label='⭐'+d; title='Dia excecional — clica para registar horas';
+        if(!isOwner) dataAttrs=`data-exceptional="${ds}" data-staff="${hrStaff}"`;
+        else dataAttrs=`data-toggle-exceptional="${ds}"`;
+      } else if(holiday){
+        // Public holiday — blocked for staff, owner can unlock
+        cls='cal-day normal'; style='opacity:0.35;cursor:'+(isOwner?'pointer':'default');
+        label='🔒'+d; title='Feriado'+(isOwner?' (toca para desbloquear)':'');
+        if(isOwner) dataAttrs=`data-toggle-exceptional="${ds}"`;
+      } else if(isClosed){
+        // Thu or Sun (closed) — owner can unlock
+        cls='cal-day normal'; style='opacity:0.25;cursor:'+(isOwner?'pointer':'default');
+        title='Dia encerrado'+(isOwner?' (toca para marcar como excecional)':'');
+        if(isOwner) dataAttrs=`data-toggle-exceptional="${ds}"`;
       } else if(hrFolgaMode && isWork && !isOwner){
-        // Folga mode: highlight valid folga days (Seg/Ter/Qua/Sex)
         cls='cal-day'; style='background:rgba(74,144,217,.08);border:1px solid rgba(74,144,217,.4);cursor:pointer';
-        title='Tocar para pedir folga';
-      } else if(hrFolgaMode && !isWork){
-        // Folga mode: non-folga days shown greyed
+        title='Tocar para pedir folga'; dataAttrs=`data-folga-date="${ds}"`;
+      } else if(hrFolgaMode){
         cls='cal-day normal'; style='opacity:0.25';
       } else {
-        // Normal mode: open days normal, closed days (Sun/Thu) greyed
-        cls='cal-day normal'; style=isVacOk?'':'opacity:0.25';
+        cls='cal-day normal'; style=vacOkFinal?'':'opacity:0.25';
+        if(!hrFolgaMode && vacOkFinal && !folga && !isVacApp && !isVacPend)
+          dataAttrs=`data-date="${ds}" data-staff="${hrStaff}"`;
       }
 
-      // data-folga-date: only workdays in folga mode
-      // data-date: vacation days in normal mode (includes Sat)
-      const dataAttrs = hrFolgaMode && isWork && !isOwner && !folga && !isVacApp
-        ? `data-folga-date="${ds}"`
-        : (!hrFolgaMode && isVacOk && !folga && !isVacApp && !isVacPend
-          ? `data-date="${ds}" data-staff="${hrStaff}"` : '');
-
-      html+=`<div class="${cls}" ${dataAttrs} style="${style}" title="${title}">${d}</div>`;
+      html+=`<div class="${cls}" ${dataAttrs} style="${style}" title="${title}">${label}</div>`;
     }
     html+=`</div></div>`;
   }
 
   // Legend
-  html+=`<div class="cal-legend" style="flex-wrap:wrap;gap:8px">
+  html+=`<div class="cal-legend" style="flex-wrap:wrap;gap:8px;margin-bottom:12px">
     <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(107,191,142,.3);border:1px solid var(--green)"></div>Férias</div>
     <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(74,144,217,.3);border:2px solid #4a90d9"></div>🔵 Folga dia (8h)</div>
     <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(155,89,182,.3);border:2px solid #9b59b6"></div>🟣 Manhã (3h)</div>
     <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(230,126,34,.3);border:2px solid #e67e22"></div>🟠 Tarde (5h)</div>
+    <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(245,200,66,.15);border:2px solid var(--gold)"></div>⭐ Excecional</div>
+    <div class="cal-legend-item"><div class="cal-legend-dot" style="opacity:0.35;background:var(--s2);border:1px solid var(--border)"></div>🔒 Feriado/Encerrado</div>
+    ${isOwner?'<div style="font-size:10px;color:var(--text2);width:100%;margin-top:4px">💡 Toca em dias encerrados/feriados para os tornar excecionais</div>':''}
   </div>`;
 
   // Pending vacation approvals (owner)
