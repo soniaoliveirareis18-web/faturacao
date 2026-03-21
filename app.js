@@ -281,7 +281,7 @@ function renderStaffMode() {
 }
 
 function staffSetApptStatus(id, status) {
-  const a = appts.find(x => x.id === id); if(!a) return;
+  const a = appts.find(x => String(x.id)===String(id)); if(!a) return;
   a.status = a.status === status ? 'pending' : status;
   persistAppts();
   renderStaffMode();
@@ -289,7 +289,7 @@ function staffSetApptStatus(id, status) {
 }
 
 function staffSetApptPayType(id, payType) {
-  const a = appts.find(x => x.id === id); if(!a) return;
+  const a = appts.find(x => String(x.id)===String(id)); if(!a) return;
   a.payType = payType;
   persistAppts();
   showToast('✓ Método de pagamento guardado!','success');
@@ -492,7 +492,7 @@ function setEditType(t){
   document.getElementById('edit-btn-nfat').className='type-btn'+(t==='nfat'?' active-nfat':'');
 }
 function saveEditEntry(){
-  const e=entries.find(x=>x.id===editEntryId); if(!e) return;
+  const e=entries.find(x=>String(x.id)===String(editEntryId)); if(!e) return;
   const d=document.getElementById('edit-date').value;
   const t=document.getElementById('edit-time').value||'12:00';
   e.date=d;
@@ -1103,32 +1103,32 @@ function apptCardHTML(a){
 function toggleAppt(id){ document.getElementById('appt-'+id)?.classList.toggle('expanded'); }
 function setApptStatus(e,id,s){
   e.stopPropagation();
-  const a=appts.find(x=>x.id===id); if(!a) return;
+  const a=appts.find(x=>String(x.id)===String(id)); if(!a) return;
   a.status=a.status===s?'pending':s;
   if(a.status==='noshow') a.paid=0;
   persistAppts(); renderAgenda();
   setTimeout(()=>{ if(a.status!=='noshow') document.getElementById('appt-'+id)?.classList.add('expanded'); },30);
 }
-function updateApptPaid(id,v){ const a=appts.find(x=>x.id===id); if(a){ a.paid=parseFloat(v)||0; persistAppts(); } }
-function updateApptPayType(id,v){ const a=appts.find(x=>x.id===id); if(a){ a.payType=v; persistAppts(); } }
-function updateApptStaff(id,v){ const a=appts.find(x=>x.id===id); if(a){ a.staff=v; persistAppts(); } }
-function updateApptBilled(id,v){ const a=appts.find(x=>x.id===id); if(a){ a.billed=v; persistAppts(); } }
+function updateApptPaid(id,v){ const a=appts.find(x=>String(x.id)===String(id)); if(a){ a.paid=parseFloat(v)||0; persistAppts(); } }
+function updateApptPayType(id,v){ const a=appts.find(x=>String(x.id)===String(id)); if(a){ a.payType=v; persistAppts(); } }
+function updateApptStaff(id,v){ const a=appts.find(x=>String(x.id)===String(id)); if(a){ a.staff=v; persistAppts(); } }
+function updateApptBilled(id,v){ const a=appts.find(x=>String(x.id)===String(id)); if(a){ a.billed=v; persistAppts(); } }
 function addExtraToAppt(id){
   const svcName=window.prompt('Serviço extra:'); if(!svcName) return;
   const val=parseFloat(window.prompt('Valor (€):')); if(!val||val<=0){ showToast('Valor inválido.','error'); return; }
-  const a=appts.find(x=>x.id===id); if(!a) return;
+  const a=appts.find(x=>String(x.id)===String(id)); if(!a) return;
   a.extras=a.extras||[];
   a.extras.push({svc:svcName.trim(),val});
   persistAppts(); renderAgenda();
   setTimeout(()=>document.getElementById('appt-'+id)?.classList.add('expanded'),30);
 }
 function removeExtra(id,idx){
-  const a=appts.find(x=>x.id===id); if(!a) return;
+  const a=appts.find(x=>String(x.id)===String(id)); if(!a) return;
   a.extras.splice(idx,1); persistAppts(); renderAgenda();
   setTimeout(()=>document.getElementById('appt-'+id)?.classList.add('expanded'),30);
 }
 function finalizeAppt(id){
-  const a=appts.find(x=>x.id===id); if(!a) return;
+  const a=appts.find(x=>String(x.id)===String(id)); if(!a) return;
   if(a.status==='noshow'){ showToast('Cliente marcada como faltou.','error'); return; }
   const paid=a.paid||a.price||0;
   const type=a.billed==='nfat'?'nfat':'fat';
