@@ -275,8 +275,6 @@ function renderStaffMode() {
               ${['Dinheiro','MB/Multibanco','MB Way','Transferência Bancária'].map(p=>`<option value="${p}" ${(a.payType||'Dinheiro')===p?'selected':''}>${p}</option>`).join('')}
             </select>
           </div>`:''}
-          <div style="display:none">
-          </div>
         </div>
       </div>`).join('')
     : '<div class="empty-state" style="padding:20px"><div class="empty-icon">📅</div>Sem marcações hoje.</div>';
