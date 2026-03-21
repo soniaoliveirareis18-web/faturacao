@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 let hrData    = JSON.parse(localStorage.getItem('sr_hr')    || '{}');
 // hrData[staffName] = { hours:[{id,date,total,note,approved}], vacations:[{id,dates[],status,note}], training:[{id,name,hours,date}], vacationDays:22, trainingHoursTotal:40 }
-const persistHR = () => localStorage.setItem('sr_hr', JSON.stringify(hrData));
+var persistHR = function() { localStorage.setItem('sr_hr', JSON.stringify(hrData)); };
 
 let hrTab         = 'horas';      // 'horas' | 'ferias' | 'formacao'
 let hrStaff       = null;         // selected staff member

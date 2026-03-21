@@ -102,6 +102,7 @@ var persistAppts   = function() { localStorage.setItem('sr_appts',   JSON.string
 var persistClients = function() { localStorage.setItem('sr_clients',  JSON.stringify(clients)); };
 var persistStaff   = function() { localStorage.setItem('sr_staff',    JSON.stringify(staff)); };
 var persistPins    = function() { localStorage.setItem('sr_pins',     JSON.stringify(userPins)); };
+var persistGoal    = function() { localStorage.setItem('sr_goal',    goalVal); };
 
 // ═══════════════════════════════════════════════════════════
 //  BOOT
