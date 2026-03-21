@@ -152,37 +152,37 @@ function fbSave(path, data) {
 }
 
 // Override persist functions to also sync Firebase
-function persist() {
+persist = function() {
   localStorage.setItem('sr_v1', JSON.stringify(entries));
   if (fbActive) fbSave('entries', Object.fromEntries(entries.map(e => [e.id, e])));
 }
 
-function persistAppts() {
+persistAppts = function() {
   localStorage.setItem('sr_appts', JSON.stringify(appts));
   if (fbActive) fbSave('appts', Object.fromEntries(appts.map(a => [a.id, a])));
 }
 
-function persistClients() {
+persistClients = function() {
   localStorage.setItem('sr_clients', JSON.stringify(clients));
   if (fbActive) fbSave('clients', Object.fromEntries(clients.map(c => [c.id, c])));
 }
 
-function persistHR() {
+persistHR = function() {
   localStorage.setItem('sr_hr', JSON.stringify(hrData));
   if (fbActive) fbSave('hrData', hrData);
 }
 
-function persistStaff() {
+persistStaff = function() {
   localStorage.setItem('sr_staff', JSON.stringify(staff));
   if (fbActive) fbSave('staff', staff);
 }
 
-function persistPins() {
+persistPins = function() {
   localStorage.setItem('sr_pins', JSON.stringify(userPins));
   if (fbActive) fbSave('settings/userPins', userPins);
 }
 
-function persistGoal() {
+persistGoal = function() {
   localStorage.setItem('sr_goal', goalVal);
   if (fbActive) fbSave('settings/goal', goalVal);
 }
