@@ -79,6 +79,7 @@
   <div class="staff-mode-view">
     <div style="display:flex;gap:8px;margin-bottom:16px">
       <button class="staff-reg-btn" style="flex:2;margin-bottom:0" onclick="openModal()">+ Registar Serviço</button>
+      <button onclick="openProductModal()" style="flex:1;padding:14px 8px;border-radius:14px;background:var(--s2);border:2px solid var(--gold);color:var(--gold2);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:0">+ Produto</button>
       <button onclick="showStaffEquipa()" style="flex:1;padding:18px;border-radius:14px;background:var(--s2);border:1px solid var(--border2);color:var(--text2);font-family:'Syne',sans-serif;font-size:14px;font-weight:700;cursor:pointer">👩 Equipa</button>
     </div>
     <div id="staff-equipa-view" style="display:none"></div>
@@ -256,9 +257,14 @@
   </div>
 
   <!-- FAB -->
-  <button class="fab" onclick="openModal()">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-  </button>
+  <div style="position:fixed;right:18px;bottom:calc(68px + env(safe-area-inset-bottom) + 14px);z-index:150;display:flex;flex-direction:column;gap:10px;align-items:flex-end">
+    <button class="fab" id="fab-product" onclick="openProductModal()" style="width:44px;height:44px;border-radius:22px;background:var(--s2);border:2px solid var(--gold);box-shadow:0 4px 16px rgba(201,169,110,.2)" title="Registar Produto">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--gold2)" stroke-width="2.5" width="20" height="20"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+    </button>
+    <button class="fab" onclick="openModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+  </div>
 
   <!-- BOTTOM NAV -->
   <nav class="nav">
@@ -370,6 +376,39 @@
     <div class="modal-handle"></div>
     <div class="modal-title" id="client-modal-title">Cliente</div>
     <div class="modal-body" id="client-modal-body"></div>
+  </div>
+</div>
+
+<!-- PRODUCT MODAL -->
+<div class="modal-bg" id="product-modal-bg" onclick="productModalBgClick(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Registar Produto</div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Tipo</label>
+        <div class="type-toggle">
+          <button class="type-btn active-fat" id="prod-btn-fat" onclick="setProdType('fat')">✓ Faturado</button>
+          <button class="type-btn" id="prod-btn-nfat" onclick="setProdType('nfat')">✕ Não Faturado</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Descrição do Produto</label>
+        <input class="finput" type="text" id="prod-desc" placeholder="Ex: Creme hidratante OPI" autocomplete="off"/>
+      </div>
+      <div class="field">
+        <label>Valor (€)</label>
+        <div class="price-wrap">
+          <span class="price-symbol">€</span>
+          <input class="price-input finput" type="number" id="prod-val" inputmode="decimal" placeholder="0,00" step="0.5" min="0"/>
+        </div>
+      </div>
+      <div class="field" id="prod-staff-field">
+        <label>Vendida por</label>
+        <select class="finput" id="prod-staff"></select>
+      </div>
+      <button class="save-btn" onclick="saveProduct()">Guardar Produto</button>
+    </div>
   </div>
 </div>
 

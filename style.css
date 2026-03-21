@@ -132,7 +132,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .empty-icon{font-size:32px;margin-bottom:10px;opacity:.5}
 
 /* FAB */
-.fab{position:fixed;right:18px;bottom:calc(68px + var(--safe-bottom) + 14px);z-index:150;width:54px;height:54px;border-radius:27px;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;cursor:pointer;color:#100e0c;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 28px rgba(201,169,110,.35);transition:transform .15s,box-shadow .15s}
+.fab{width:54px;height:54px;border-radius:27px;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;cursor:pointer;color:#100e0c;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 28px rgba(201,169,110,.35);transition:transform .15s,box-shadow .15s}
 .fab:active{transform:scale(.93)}
 .fab svg{width:26px;height:26px;stroke-width:2.5}
 

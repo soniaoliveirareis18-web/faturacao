@@ -228,7 +228,7 @@ function renderStaffMode() {
   if(list) list.innerHTML = myEntries.length
     ? myEntries.map(e => `<div class="entry-item">
         <div class="entry-left">
-          <div class="entry-svc">${e.svc}</div>
+          <div class="entry-svc">${e.isProduct?'📦 ':''} ${e.svc}</div>
           <div class="entry-meta"><span class="entry-time">${fmtT(e.ts)}</span><span class="pill ${e.type==='fat'?'fat':'nfat'}">${e.type==='fat'?'Fat.':'N.Fat.'}</span></div>
         </div>
         <div class="entry-val">${fmt(e.val)}</div>
@@ -474,6 +474,58 @@ function saveEditEntry(){
 // ═══════════════════════════════════════════════════════════
 //  DELETE ENTRY
 // ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+//  PRODUCTS
+// ═══════════════════════════════════════════════════════════
+let prodType = 'fat';
+
+function openProductModal(){
+  prodType = 'fat';
+  document.getElementById('prod-btn-fat').className = 'type-btn active-fat';
+  document.getElementById('prod-btn-nfat').className = 'type-btn';
+  document.getElementById('prod-desc').value = '';
+  document.getElementById('prod-val').value  = '';
+  // populate staff
+  const sel = document.getElementById('prod-staff');
+  if(sel) sel.innerHTML = staff.map(s=>`<option value="${s}">${s}</option>`).join('');
+  // hide staff field for staff mode
+  const field = document.getElementById('prod-staff-field');
+  if(field) field.style.display = currentRole==='staff' ? 'none' : '';
+  document.getElementById('product-modal-bg').classList.add('open');
+}
+function closeProductModal(){ document.getElementById('product-modal-bg').classList.remove('open'); }
+function productModalBgClick(e){ if(e.target===document.getElementById('product-modal-bg')) closeProductModal(); }
+function setProdType(t){
+  prodType = t;
+  document.getElementById('prod-btn-fat').className  = 'type-btn'+(t==='fat' ?' active-fat':'');
+  document.getElementById('prod-btn-nfat').className = 'type-btn'+(t==='nfat'?' active-nfat':'');
+}
+function saveProduct(){
+  const desc = (document.getElementById('prod-desc').value||'').trim();
+  const val  = parseFloat(document.getElementById('prod-val').value);
+  if(!desc){ showToast('Introduz a descrição do produto.','error'); return; }
+  if(!val||val<=0){ showToast('Introduz um valor válido.','error'); return; }
+  const sel = document.getElementById('prod-staff');
+  const workerVal = currentRole==='staff' ? currentUser : (sel?sel.value:(staff[0]||''));
+  const entry = {
+    id:      Date.now()+Math.random(),
+    date:    today(),
+    ts:      new Date().toISOString(),
+    type:    prodType,
+    cat:     'Produto',
+    svc:     desc,
+    val,
+    staff:   workerVal,
+    isProduct: true,
+  };
+  entries.unshift(entry);
+  persist();
+  renderAll();
+  if(currentRole==='staff') renderStaffMode();
+  closeProductModal();
+  showToast('✓ Produto registado!','success');
+}
+
 function deleteEntry(id){
   if(!confirm('Apagar este registo?')) return;
   entries=entries.filter(e=>e.id!==id);
@@ -585,7 +637,83 @@ function renderAnalise(){
   renderBarChart(cutStr);
   renderComparison();
   renderCatRank(sub);
+  renderProductsAnalysis(sub);
+  renderBestSeller();
   renderStaffAnalysis(sub);
+}
+
+function renderProductsAnalysis(sub){
+  const wrap = document.getElementById('products-analysis'); if(!wrap) return;
+  const products = sub.filter(e=>e.isProduct);
+  if(!products.length){
+    wrap.innerHTML = '<div class="empty-state" style="padding:20px"><div class="empty-icon">📦</div>Sem produtos registados neste período.</div>';
+    return;
+  }
+  const total    = products.reduce((a,e)=>a+e.val,0);
+  const fat      = products.filter(e=>e.type==='fat').reduce((a,e)=>a+e.val,0);
+  const nfat     = products.filter(e=>e.type==='nfat').reduce((a,e)=>a+e.val,0);
+  const count    = products.length;
+
+  // By staff
+  const byStaff = {};
+  products.forEach(e=>{ byStaff[e.staff]=(byStaff[e.staff]||0)+e.val; });
+  const staffRows = Object.entries(byStaff).sort((a,b)=>b[1]-a[1])
+    .map(([s,v])=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border)">
+      <span style="color:var(--text2)">${s}</span>
+      <span style="font-family:'DM Mono',monospace;color:var(--gold2)">${fmt(v)}</span>
+    </div>`).join('');
+
+  // By month (last 6 months)
+  const byMonth = {};
+  products.forEach(e=>{ const m=e.date.slice(0,7); byMonth[m]=(byMonth[m]||0)+e.val; });
+  const monthRows = Object.entries(byMonth).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,6)
+    .map(([m,v])=>{
+      const d=new Date(m+'-01'); const lbl=d.toLocaleDateString('pt-PT',{month:'short',year:'2-digit'});
+      return `<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--text2)">${lbl}</span>
+        <span style="font-family:'DM Mono',monospace;color:var(--gold2)">${fmt(v)}</span>
+      </div>`;
+    }).join('');
+
+  wrap.innerHTML = `
+    <div class="grid2" style="margin-bottom:10px">
+      <div class="card gold"><div class="card-label">Total Produtos</div><div class="card-val">${fmt(total)}</div><div class="card-sub">${count} venda${count!==1?'s':''}</div></div>
+      <div class="card green"><div class="card-label">Faturado</div><div class="card-val">${fmt(fat)}</div><div class="card-sub">${fmt(nfat)} n.fat.</div></div>
+    </div>
+    <div class="hr-card" style="margin-bottom:10px">
+      <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:10px">Por Colaboradora</div>
+      ${staffRows||'<div style="font-size:11px;color:var(--text3)">Sem dados</div>'}
+    </div>
+    <div class="hr-card">
+      <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:10px">Por Mês</div>
+      ${monthRows||'<div style="font-size:11px;color:var(--text3)">Sem dados</div>'}
+    </div>`;
+}
+
+function renderBestSeller(){
+  const wrap = document.getElementById('best-seller-wrap'); if(!wrap) return;
+  const now = new Date();
+  const monthStart = now.getFullYear()+'-'+(now.getMonth()+1).toString().padStart(2,'0')+'-01';
+  const monthProducts = entries.filter(e=>e.isProduct && e.date>=monthStart);
+  if(!monthProducts.length){
+    wrap.innerHTML = '<div class="empty-state" style="padding:16px"><div class="empty-icon">🏅</div>Sem vendas de produtos este mês.</div>';
+    return;
+  }
+  const byStaff = {};
+  monthProducts.forEach(e=>{ byStaff[e.staff]=(byStaff[e.staff]||0)+e.val; });
+  const sorted = Object.entries(byStaff).sort((a,b)=>b[1]-a[1]);
+  const [winner, winVal] = sorted[0];
+  const mName = now.toLocaleDateString('pt-PT',{month:'long'});
+  wrap.innerHTML = `
+    <div style="background:linear-gradient(135deg,var(--gold-d),rgba(201,169,110,.05));border:2px solid var(--gold);border-radius:16px;padding:18px;text-align:center">
+      <div style="font-size:32px;margin-bottom:8px">🥇</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:24px;color:var(--gold2);margin-bottom:4px">${winner}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:22px;color:var(--gold2);margin-bottom:6px">${fmt(winVal)}</div>
+      <div style="font-size:11px;color:var(--text2);font-weight:700;letter-spacing:1px;text-transform:uppercase">em produtos · ${mName}</div>
+      ${sorted.length>1?`<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border2);display:flex;justify-content:center;gap:20px">
+        ${sorted.slice(1).map(([s,v],i)=>`<div style="text-align:center"><div style="font-size:16px">${i===0?'🥈':'🥉'}</div><div style="font-size:12px;font-weight:700;color:var(--text2)">${s}</div><div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text2)">${fmt(v)}</div></div>`).join('')}
+      </div>`:''}
+    </div>`;
 }
 
 function renderBarChart(cutStr){
@@ -653,7 +781,8 @@ function renderComparison(){
 
 function renderCatRank(sub){
   const totals={},counts={};
-  sub.forEach(e=>{ totals[e.cat]=(totals[e.cat]||0)+e.val; counts[e.cat]=(counts[e.cat]||0)+1; });
+  // Exclude products from service ranking
+  sub.filter(e=>!e.isProduct).forEach(e=>{ totals[e.cat]=(totals[e.cat]||0)+e.val; counts[e.cat]=(counts[e.cat]||0)+1; });
   const sorted=Object.entries(totals).sort((a,b)=>b[1]-a[1]);
   const max=sorted.length?sorted[0][1]:1;
   const wrap=document.getElementById('cat-rank');
@@ -1055,6 +1184,10 @@ function setupEventDelegation() {
 
     // Basket
     if (action==='del-basket')  { removeFromBasket(parseInt(idx)); return; }
+
+    // Product modal type toggle (handled via onclick in HTML, but guard here)
+    if (action==='prod-fat')  { setProdType('fat'); return; }
+    if (action==='prod-nfat') { setProdType('nfat'); return; }
 
     // Pagination
     if (action==='hist-prev')     { histPage--;    renderHist(false); return; }
