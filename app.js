@@ -97,6 +97,8 @@ const today = () => new Date().toISOString().slice(0,10);
 const fmtD  = d => { const o=new Date(d+'T12:00:00'); return o.toLocaleDateString('pt-PT',{weekday:'short',day:'numeric',month:'short'}); };
 const fmtT  = iso => new Date(iso).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'});
 // persist functions defined here as defaults; firebase.js overrides them if active
+const PAYMENT_METHODS = ['Dinheiro','MB/Multibanco','MB Way','Transferência Bancária'];
+
 var persist        = function() { localStorage.setItem('sr_v1',      JSON.stringify(entries)); };
 var persistAppts   = function() { localStorage.setItem('sr_appts',   JSON.stringify(appts)); };
 var persistClients = function() { localStorage.setItem('sr_clients',  JSON.stringify(clients)); };
