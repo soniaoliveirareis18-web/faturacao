@@ -579,8 +579,9 @@ function deleteEntry(id){
 //  ENTRY HTML
 // ═══════════════════════════════════════════════════════════
 function entryHTML(e) {
+  const eId = String(e.id);
   const editBtn = currentRole==='owner'
-    ? `<button class="entry-btn" data-action="edit-entry" data-id="${e.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>` : '';
+    ? `<button class="entry-btn" onclick="openEditModal('${eId}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>` : '';
   return `<div class="entry-item">
     <div class="entry-left">
       <div class="entry-svc">${e.svc}</div>
@@ -593,7 +594,7 @@ function entryHTML(e) {
     <div class="entry-val">${fmt(e.val)}</div>
     <div class="entry-actions">
       ${editBtn}
-      <button class="entry-btn del" data-action="del-entry" data-id="${e.id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+      <button class="entry-btn del" onclick="deleteEntry('${eId}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
     </div>
   </div>`;
 }
