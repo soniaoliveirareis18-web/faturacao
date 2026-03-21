@@ -10,7 +10,7 @@
 <title>Sónia Reis · Faturação</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
 
-<link rel="stylesheet" href="style.css"/>
+<link rel="stylesheet" href="style.css?v=20260321"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Firebase SDK (v8 compat — carrega só se configurado) -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -23,23 +23,23 @@
   <div class="login-logo">Sónia Reis</div>
   <div class="login-sub">Estética · Beleza · Formação</div>
   <div class="login-greeting" id="login-greeting">Quem está a entrar?</div>
-  <div id="user-select" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:320px;margin-bottom:32px">
-    <button onclick="showPinScreen('Sónia','owner')" style="padding:20px 10px;border-radius:14px;border:2px solid #c9a96e;background:#1a1713;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px">
+  <div id="user-select" style="display:grid!important;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:320px;margin-bottom:32px">
+    <button type="button" onclick="showPinScreen('Sónia','owner')" style="padding:20px 10px;border-radius:14px;border:2px solid #c9a96e;background:#1a1713;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px">
       <div style="width:48px;height:48px;border-radius:24px;background:rgba(201,169,110,.13);color:#e8cc9a;border:2px solid #c9a96e;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;font-family:monospace">SR</div>
       <div style="font-size:14px;font-weight:700;color:#e8ddd0">Sónia</div>
     </button>
-    <button onclick="showPinScreen('Cátia','staff')" style="padding:20px 10px;border-radius:14px;border:2px solid #2e2922;background:#1a1713;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px">
+    <button type="button" onclick="showPinScreen('Cátia','staff')" style="padding:20px 10px;border-radius:14px;border:2px solid #2e2922;background:#1a1713;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px">
       <div style="width:48px;height:48px;border-radius:24px;background:#221f1a;color:#8a7d6e;border:2px solid #2e2922;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;font-family:monospace">CÁ</div>
       <div style="font-size:14px;font-weight:700;color:#e8ddd0">Cátia</div>
     </button>
-    <button onclick="showPinScreen('Lara','staff')" style="padding:20px 10px;border-radius:14px;border:2px solid #2e2922;background:#1a1713;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px">
+    <button type="button" onclick="showPinScreen('Lara','staff')" style="padding:20px 10px;border-radius:14px;border:2px solid #2e2922;background:#1a1713;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px">
       <div style="width:48px;height:48px;border-radius:24px;background:#221f1a;color:#8a7d6e;border:2px solid #2e2922;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;font-family:monospace">LA</div>
       <div style="font-size:14px;font-weight:700;color:#e8ddd0">Lara</div>
     </button>
   </div>
-  <div id="pin-screen" style="display:none;flex-direction:column;align-items:center;width:100%;max-width:280px">
-    <div class="pin-user" id="pin-user-name"></div>
-    <div class="pin-hint">Introduz o teu PIN de 4 dígitos</div>
+  <div id="pin-screen" style="display:none;flex-direction:column;align-items:center;width:100%;max-width:280px;text-align:center">
+    <div id="pin-user-name" style="font-size:16px;font-weight:800;margin-bottom:6px;color:#e8ddd0"></div>
+    <div style="font-size:13px;color:#6b5e4e;margin-bottom:20px">Introduz o teu PIN de 4 dígitos</div>
     <div class="pin-dots" id="pin-dots">
       <div class="pin-dot" id="pd0"></div>
       <div class="pin-dot" id="pd1"></div>
@@ -191,6 +191,10 @@
       <div id="compare-wrap"></div>
       <div class="sec-title">🏆 Ranking de Serviços</div>
       <div class="cat-rank-list" id="cat-rank"></div>
+      <div class="sec-title">📦 Análise de Produtos</div>
+      <div id="products-analysis"></div>
+      <div class="sec-title">🥇 Melhor Vendedora do Mês</div>
+      <div id="best-seller-wrap"></div>
       <div class="sec-title">👩 Por Funcionária</div>
       <div class="hist-filter" id="analise-staff-filter"></div>
       <div id="staff-cards"></div>
@@ -427,9 +431,9 @@
 </div>
 
 <!-- Scripts — ordem importante -->
-<script src="app.js"></script>
-<script src="hr.js"></script>
-<script src="firebase.js"></script>
+<script src="app.js?v=20260321"></script>
+<script src="hr.js?v=20260321"></script>
+<script src="firebase.js?v=20260321"></script>
 
 </body>
 </html>

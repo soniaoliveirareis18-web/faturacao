@@ -72,10 +72,10 @@ function setupHRDelegation(){
 
   // Use equipa-content as the root — it always exists once owner logs in
   document.addEventListener('click', function hrHandler(e){
-    // Only process if a user is logged in
     if(!currentUser || !currentRole) return;
-    // Only process if click is inside equipa area or folga picker
     if(!e.target.closest('#equipa-content, #staff-equipa-view, #folga-picker-overlay')) return;
+    // Stop propagation so app delegation doesn't double-handle
+    e.stopPropagation();
 
     // ── Calendar: toggle exceptional day (owner only) ──
     const excToggle = e.target.closest('[data-toggle-exceptional]');
@@ -580,7 +580,7 @@ function deleteHours(name,id){
   const hr=getHR(name);
   const h=hr.hours.find(x=>x.id===id); if(!h) return;
   if(currentRole!=='owner' && !isWithin24h(h.date)){
-    alert('Não podes apagar registos com mais de 24h.\nPede à Sónia para o fazer.');
+    showToast('Bloqueado — pede à Sónia para apagar registos antigos.','error'); 
     return;
   }
   if(!confirm('Apagar este registo?')) return;
@@ -816,21 +816,23 @@ function showFolgaTypePicker(dateStr){
 
 function toggleVacationDay(name, dateStr){
   const hr=getHR(name);
-  // Check if already in a vacation
   const existing=hr.vacations.find(v=>v.dates.includes(dateStr));
   if(existing){
-    if(existing.status==='approved'&&currentRole!=='owner'){ showToast('Férias aprovadas — contacta a Sónia para alterar.','error'); return; }
-    if(confirm('Remover este dia de férias?')){
-      existing.dates=existing.dates.filter(d=>d!==dateStr);
-      if(!existing.dates.length) hr.vacations=hr.vacations.filter(v=>v.id!==existing.id);
-      persistHR(); renderEquipa();
+    if(existing.status==='approved' && currentRole!=='owner'){
+      showToast('Férias aprovadas — contacta a Sónia para alterar.','error'); return;
     }
+    // Remove the day (any role can remove pending, owner can remove approved)
+    existing.dates=existing.dates.filter(d=>d!==dateStr);
+    if(!existing.dates.length) hr.vacations=hr.vacations.filter(v=>v.id!==existing.id);
+    persistHR(); renderEquipa();
+    showToast('Dia removido.','success');
     return;
   }
-  // Add new pending vacation day
-  hr.vacations.push({id:Date.now()+'',dates:[dateStr],status:'pending',note:''});
+  // Add day — owner: approved immediately. Staff: pending approval
+  const autoApprove = currentRole==='owner';
+  hr.vacations.push({id:Date.now()+'',dates:[dateStr],status:autoApprove?'approved':'pending',note:''});
   persistHR(); renderEquipa(); updateBadges();
-  showToast('🟡 Pedido enviado para aprovação!','success');
+  showToast(autoApprove?'✓ Férias aprovadas!':'🟡 Pedido enviado para aprovação!','success');
 }
 
 function approveVacation(name,id,approve){

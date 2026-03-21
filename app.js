@@ -112,6 +112,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('todayLabel') && (document.getElementById('todayLabel').textContent = dateStr);
   document.getElementById('staff-mode-date') && (document.getElementById('staff-mode-date').textContent = dateStr);
 
+  // Init pins with defaults
+  if(!userPins['Sónia']) userPins['Sónia'] = '1234';
+  staff.forEach(s => { if(!userPins[s]) userPins[s] = '0000'; });
+  persistPins();
+
+  buildLoginScreen();
   buildCatChips();
   renderSvcGrid();
   populateStaffSelects();
@@ -122,19 +128,28 @@ document.addEventListener('DOMContentLoaded', () => {
 //  LOGIN SYSTEM
 // ═══════════════════════════════════════════════════════════
 function buildLoginScreen() {
+  // Only called when staff list changes (add/remove member)
+  // Normal login uses hardcoded buttons in HTML for reliability
   const wrap = document.getElementById('user-select');
   if(!wrap) return;
+  const defaultStaff = ['Sónia','Cátia','Lara'];
+  const currentStaff = ['Sónia', ...staff.filter(s => s !== 'Sónia')];
+  const hasCustomStaff = currentStaff.some(s => !defaultStaff.includes(s)) || currentStaff.length !== defaultStaff.length;
+  if(!hasCustomStaff) return; // default staff — hardcoded HTML buttons are fine
+
+  // Custom staff — rebuild buttons
   wrap.innerHTML = '';
-  const allUsers = ['Sónia', ...staff.filter(s => s !== 'Sónia')];
-  allUsers.forEach(name => {
+  currentStaff.forEach(function(name) {
     const isOwner = name === 'Sónia';
     const initials = isOwner ? 'SR' : name.slice(0,2).toUpperCase();
+    const role = isOwner ? 'owner' : 'staff';
     const btn = document.createElement('button');
-    btn.setAttribute('onclick', `showPinScreen('${name}','${isOwner?'owner':'staff'}')`);
-    btn.style.cssText = `padding:20px 10px;border-radius:14px;border:2px solid ${isOwner?'#c9a96e':'#2e2922'};background:#1a1713;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px`;
-    btn.innerHTML = `
-      <div style="width:48px;height:48px;border-radius:24px;background:${isOwner?'rgba(201,169,110,.13)':'#221f1a'};color:${isOwner?'#e8cc9a':'#8a7d6e'};border:2px solid ${isOwner?'#c9a96e':'#2e2922'};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;font-family:monospace">${initials}</div>
-      <div style="font-size:14px;font-weight:700;color:#e8ddd0">${name}</div>`;
+    btn.type = 'button';
+    btn.style.cssText = 'padding:20px 10px;border-radius:14px;border:2px solid '+(isOwner?'#c9a96e':'#2e2922')+';background:#1a1713;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px';
+    btn.innerHTML =
+      '<div style="width:48px;height:48px;border-radius:24px;background:'+(isOwner?'rgba(201,169,110,.13)':'#221f1a')+';color:'+(isOwner?'#e8cc9a':'#8a7d6e')+';border:2px solid '+(isOwner?'#c9a96e':'#2e2922')+';display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;font-family:monospace">'+initials+'</div>'+
+      '<div style="font-size:14px;font-weight:700;color:#e8ddd0">'+name+'</div>';
+    btn.onclick = function() { showPinScreen(name, role); };
     wrap.appendChild(btn);
   });
 }
@@ -146,8 +161,8 @@ function showPinScreen(name, role) {
   const us = document.getElementById('user-select');
   const ps = document.getElementById('pin-screen');
   if(pn) pn.textContent = name;
-  if(us) us.style.display = 'none';
-  if(ps) { ps.style.display='flex'; ps.style.flexDirection='column'; ps.style.alignItems='center'; }
+  if(us) us.setAttribute('style','display:none!important;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:320px;margin-bottom:32px');
+  if(ps) ps.setAttribute('style','display:flex!important;flex-direction:column;align-items:center;width:100%;max-width:280px;text-align:center');
   updatePinDots();
 }
 
@@ -155,8 +170,9 @@ function showUserSelect() {
   pinBuffer = '';
   const us = document.getElementById('user-select');
   const ps = document.getElementById('pin-screen');
-  if(us) { us.style.display='grid'; buildLoginScreen(); }
-  if(ps) ps.style.display='none';
+  if(us) us.setAttribute('style','display:grid!important;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:320px;margin-bottom:32px');
+  if(ps) ps.setAttribute('style','display:none!important;flex-direction:column;align-items:center;width:100%;max-width:280px;text-align:center');
+  buildLoginScreen();
   updatePinDots();
 }
 
@@ -391,8 +407,8 @@ function removeFromBasket(i){
 function addFreeService(){
   const name=(document.getElementById('free-svc-name')?.value||'').trim();
   const val=parseFloat(document.getElementById('free-svc-val')?.value||0);
-  if(!name){ alert('Escreve o nome do serviço ou produto.'); return; }
-  if(!val||val<=0){ alert('Introduz um valor válido.'); return; }
+  if(!name){ showToast('Escreve o nome do serviço ou produto.','error'); return; }
+  if(!val||val<=0){ showToast('Introduz um valor válido.','error'); return; }
   selSvcs.push({svc:{n:name,p:val,v:true},val,staff:staff[0]||''});
   document.getElementById('free-svc-name').value='';
   document.getElementById('free-svc-val').value='';
@@ -400,9 +416,9 @@ function addFreeService(){
 }
 
 function saveEntry() {
-  if (!selSvcs.length) { alert('Adiciona pelo menos um serviço.'); return; }
+  if (!selSvcs.length) { showToast('Adiciona pelo menos um serviço.','error'); return; }
   const invalid=selSvcs.find(x=>!x.val||x.val<=0);
-  if (invalid) { alert('Valor inválido: '+invalid.svc.n); return; }
+  if (invalid) { showToast('Valor inválido: '+invalid.svc.n,'error'); return; }
   const clientName=(document.getElementById('entry-client-name')?.value||'').trim();
   const now=new Date().toISOString();
   selSvcs.forEach((x,i)=>{
@@ -433,7 +449,7 @@ function upsertClientByName(name, e){
 //  EDIT ENTRY
 // ═══════════════════════════════════════════════════════════
 function openEditModal(id) {
-  const e=entries.find(x=>x.id===id); if(!e) return;
+  const e=entries.find(x=>String(x.id)===String(id)); if(!e) return;
   editEntryId=id; editEntryType=e.type;
   document.getElementById('edit-date').value=e.date;
   document.getElementById('edit-time').value=fmtT(e.ts);
@@ -528,7 +544,7 @@ function saveProduct(){
 
 function deleteEntry(id){
   if(!confirm('Apagar este registo?')) return;
-  entries=entries.filter(e=>e.id!==id);
+  entries=entries.filter(e=>String(e.id)!==String(id));
   persist(); renderAll();
   const hist=document.getElementById('view-hist');
   if(hist?.classList.contains('active')) renderHist();
@@ -1139,7 +1155,7 @@ function renderAgSvcGrid(){
   });
 }
 function saveAgAppointment(){
-  if(!agSelSvc){ alert('Seleciona um serviço.'); return; }
+  if(!agSelSvc){ showToast('Seleciona um serviço.','error'); return; }
   const agStaff=document.getElementById('ag-staff')?.value||(staff[0]||'');
   const appt={
     id:Date.now()+'',date:today(),time:document.getElementById('ag-time').value||'10:00',
@@ -1162,8 +1178,8 @@ function setupEventDelegation() {
   document.addEventListener('click', function(e) {
     const el = e.target.closest('[data-action]');
     if (!el) return;
+    // Do NOT stopPropagation — HR module needs events to bubble
     const {action, id, idx} = el.dataset;
-    e.stopPropagation();
 
     // Agenda actions
     if (action==='toggle')      { toggleAppt(id); return; }
@@ -1175,8 +1191,8 @@ function setupEventDelegation() {
     if (action==='del-appt')    { deleteAppt(id); return; }
 
     // Entry actions
-    if (action==='edit-entry')  { openEditModal(parseFloat(id)); return; }
-    if (action==='del-entry')   { deleteEntry(parseFloat(id)); return; }
+    if (action==='edit-entry')  { openEditModal(id); return; }
+    if (action==='del-entry')   { deleteEntry(id); return; }
 
     // Client actions
     if (action==='open-client') { openClientModal(id); return; }
@@ -1470,7 +1486,7 @@ function saveFirebaseConfig(){
     projectId:document.getElementById('fb-projectId').value.trim(),
     appId:document.getElementById('fb-appId').value.trim(),
   };
-  if(!cfg.apiKey||!cfg.databaseURL){ alert('Preenche pelo menos API Key e Database URL.'); return; }
+  if(!cfg.apiKey||!cfg.databaseURL){ showToast('Preenche pelo menos API Key e Database URL.'); return; }
   localStorage.setItem('sr_firebase',JSON.stringify(cfg));
   showToast('✓ Firebase guardado! Recarrega a app para ativar.','success');
   renderCfg();

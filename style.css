@@ -1,6 +1,6 @@
 * { touch-action: manipulation; -webkit-touch-callout: none; }
-html { touch-action: pan-x pan-y; }
-body { touch-action: pan-x pan-y; overscroll-behavior: none; }
+html { overscroll-behavior: none; }
+body { overscroll-behavior: none; }
 
 :root{
   --bg:#100e0c;--s1:#1a1713;--s2:#221f1a;
@@ -24,7 +24,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .login-logo{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:36px;font-weight:600;color:var(--gold2);margin-bottom:6px;text-align:center}
 .login-sub{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text2);margin-bottom:40px;text-align:center}
 .login-greeting{font-size:14px;color:var(--text2);margin-bottom:24px;text-align:center}
-.user-select{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:320px;margin-bottom:32px}
+/* user-select styled inline only */
 .user-btn{padding:16px 10px;border-radius:14px;border:2px solid var(--border2);background:var(--s1);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .15s}
 .user-btn:active{transform:scale(.96)}
 .user-btn.owner{border-color:var(--gold)}
@@ -35,9 +35,8 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .user-name{font-size:13px;font-weight:700;color:var(--text)}
 .user-role{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2)}
 
-.pin-screen{display:flex;flex-direction:column;align-items:center;width:100%;max-width:280px}
-.pin-screen.hidden{display:none}
-.pin-user{font-size:16px;font-weight:800;margin-bottom:6px;color:var(--text)}
+/* pin-screen styled inline only */
+/* pin-user styled inline only */
 .pin-hint{font-size:11px;color:var(--text2);margin-bottom:24px}
 .pin-dots{display:flex;gap:14px;margin-bottom:28px}
 .pin-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--border2);background:transparent;transition:all .15s}
@@ -429,8 +428,8 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .cal-day.normal{background:var(--s2);color:var(--text2)}
 .cal-day.normal:active{background:var(--gold-d);color:var(--gold2)}
 .cal-day.today-d{background:var(--gold-d);color:var(--gold2);border:1px solid var(--gold)}
-.cal-day.vacation-pending{background:rgba(255,201,71,.15);color:#ffc947}
-.cal-day.vacation-approved{background:var(--green-d);color:var(--green)}
+.cal-day.vacation-pending{background:rgba(255,201,71,.3);color:#ffc947;font-weight:700;border:1px solid #ffc947}
+.cal-day.vacation-approved{background:rgba(107,191,142,.45);color:#fff;font-weight:800;border:2px solid var(--green)}
 .cal-day.vacation-rejected{background:var(--red-d);color:var(--red)}
 .cal-day.extra-hours{background:rgba(91,138,255,.15);color:var(--blue)}
 .cal-day.neg-hours{background:rgba(224,92,92,.1);color:var(--red)}
