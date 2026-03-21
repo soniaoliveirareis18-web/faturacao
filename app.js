@@ -269,6 +269,14 @@ function renderStaffMode() {
             <div class="status-badge ${a.status==='done'?'active-done':''}" data-action="staff-done" data-id="${a.id}" title="Veio">✓</div>
             <div class="status-badge ${a.status==='noshow'?'active-noshow':''}" data-action="staff-noshow" data-id="${a.id}" title="Não veio">✕</div>
           </div>
+          ${a.status==='done'||a.status==='noshow'?`<div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+            <label style="font-size:11px;color:var(--text2);font-weight:700;white-space:nowrap">Pagamento:</label>
+            <select data-action="staff-pay" data-id="${a.id}" style="flex:1;background:var(--s2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:'Syne',sans-serif;font-size:12px;padding:6px 8px;outline:none">
+              ${['Dinheiro','MB/Multibanco','MB Way','Transferência Bancária'].map(p=>`<option value="${p}" ${(a.payType||'Dinheiro')===p?'selected':''}>${p}</option>`).join('')}
+            </select>
+          </div>`:''}
+          <div style="display:none">
+          </div>
         </div>
       </div>`).join('')
     : '<div class="empty-state" style="padding:20px"><div class="empty-icon">📅</div>Sem marcações hoje.</div>';
@@ -280,6 +288,13 @@ function staffSetApptStatus(id, status) {
   persistAppts();
   renderStaffMode();
   showToast(status==='done' ? '✓ Marcado como veio!' : '✕ Marcado como não veio.', status==='done'?'success':'error');
+}
+
+function staffSetApptPayType(id, payType) {
+  const a = appts.find(x => x.id === id); if(!a) return;
+  a.payType = payType;
+  persistAppts();
+  showToast('✓ Método de pagamento guardado!','success');
 }
 
 function showStaffEquipa(){
@@ -329,6 +344,8 @@ function openModal() {
   if(document.getElementById('entry-client-name')) document.getElementById('entry-client-name').value='';
   if(document.getElementById('free-svc-name')) document.getElementById('free-svc-name').value='';
   if(document.getElementById('free-svc-val')) document.getElementById('free-svc-val').value='';
+  const epSel=document.getElementById('entry-pay-method');
+  if(epSel) epSel.value='Dinheiro';
   document.getElementById('modal-bg').classList.add('open');
 }
 function closeModal() { document.getElementById('modal-bg').classList.remove('open'); }
@@ -422,9 +439,10 @@ function saveEntry() {
   const invalid=selSvcs.find(x=>!x.val||x.val<=0);
   if (invalid) { showToast('Valor inválido: '+invalid.svc.n,'error'); return; }
   const clientName=(document.getElementById('entry-client-name')?.value||'').trim();
+  const payMethod=(document.getElementById('entry-pay-method')?.value)||'Dinheiro';
   const now=new Date().toISOString();
   selSvcs.forEach((x,i)=>{
-    const e={id:Date.now()+i+Math.random(),date:today(),ts:now,type:selType,cat:selCat,svc:x.svc.n,val:x.val,staff:x.staff||(staff[0]||''),clientName};
+    const e={id:Date.now()+i+Math.random(),date:today(),ts:now,type:selType,cat:selCat,svc:x.svc.n,val:x.val,staff:x.staff||(staff[0]||''),clientName,payMethod};
     entries.unshift(e);
     if(clientName) upsertClientByName(clientName, e);
   });
@@ -462,6 +480,10 @@ function openEditModal(id) {
   const staffSel=document.getElementById('edit-staff');
   staffSel.innerHTML=staff.map(s=>`<option value="${s}" ${s===e.staff?'selected':''}>${s}</option>`).join('');
   setEditType(e.type);
+  const editPaySel=document.getElementById('edit-pay-method');
+  if(editPaySel){
+    editPaySel.innerHTML=PAYMENT_METHODS.map(p=>`<option value="${p}" ${(e.payMethod||'Dinheiro')===p?'selected':''}>${p}</option>`).join('');
+  }
   document.getElementById('edit-modal-bg').classList.add('open');
 }
 function closeEditModal(){ document.getElementById('edit-modal-bg').classList.remove('open'); }
@@ -482,6 +504,7 @@ function saveEditEntry(){
   e.val=parseFloat(document.getElementById('edit-val').value)||e.val;
   e.type=editEntryType;
   e.staff=document.getElementById('edit-staff').value;
+  e.payMethod=document.getElementById('edit-pay-method')?.value||e.payMethod||'Dinheiro';
   persist(); renderAll();
   const hist=document.getElementById('view-hist');
   if(hist?.classList.contains('active')) renderHist();
@@ -525,6 +548,7 @@ function saveProduct(){
   if(!val||val<=0){ showToast('Introduz um valor válido.','error'); return; }
   const sel = document.getElementById('prod-staff');
   const workerVal = currentRole==='staff' ? currentUser : (sel?sel.value:(staff[0]||''));
+  const prodPay = document.getElementById('prod-pay-method')?.value || 'Dinheiro';
   const entry = {
     id:      Date.now()+Math.random(),
     date:    today(),
@@ -535,6 +559,7 @@ function saveProduct(){
     val,
     staff:   workerVal,
     isProduct: true,
+    payMethod: prodPay,
   };
   entries.unshift(entry);
   persist();
@@ -562,7 +587,7 @@ function entryHTML(e) {
     <div class="entry-left">
       <div class="entry-svc">${e.svc}</div>
       <div class="entry-meta">
-        <span class="entry-time">${fmtT(e.ts)} · ${e.cat}</span>
+        <span class="entry-time">${fmtT(e.ts)} · ${e.cat}${e.payMethod?' · '+e.payMethod:''}</span>
         <span class="pill ${e.type==='fat'?'fat':'nfat'}">${e.type==='fat'?'Faturado':'Não Fat.'}</span>
         ${e.staff?`<span style="font-size:9px;color:var(--text2);font-weight:700">${e.staff}</span>`:''}
       </div>
@@ -1046,7 +1071,7 @@ function apptCardHTML(a){
   const extras=(a.extras||[]);
   const totalPaid=(a.paid||0)+extras.reduce((s,e)=>s+e.val,0);
   const statusClass=a.status==='done'?'status-done':a.status==='noshow'?'status-noshow':'';
-  const payOpts=['Dinheiro','MB/Multibanco','MB Way','Cartão'].map(p=>`<option value="${p}" ${a.payType===p?'selected':''}>${p}</option>`).join('');
+  const payOpts=['Dinheiro','MB/Multibanco','MB Way','Transferência Bancária'].map(p=>`<option value="${p}" ${a.payType===p?'selected':''}>${p}</option>`).join('');
   return `<div class="appt-card ${statusClass}" id="appt-${a.id}">
     <div class="appt-header" data-action="toggle" data-id="${a.id}">
       <div class="appt-time">${a.time}</div>
@@ -1219,6 +1244,7 @@ function setupEventDelegation() {
     // Staff agenda
     if (action==='staff-done')  { staffSetApptStatus(id, 'done'); return; }
     if (action==='staff-noshow'){ staffSetApptStatus(id, 'noshow'); return; }
+    if (action==='staff-pay')   { staffSetApptPayType(id, el.value); return; }
   });
 }
 

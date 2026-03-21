@@ -10,7 +10,7 @@
 <title>Sónia Reis · Faturação</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
 
-<link rel="stylesheet" href="style.css?v=20260322"/>
+<link rel="stylesheet" href="style.css?v=20260323"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Firebase SDK (v8 compat — carrega só se configurado) -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -328,6 +328,15 @@
         <input class="finput" type="text" id="entry-client-name" placeholder="Ex: Maria Silva" autocomplete="off" list="clients-datalist"/>
         <datalist id="clients-datalist"></datalist>
       </div>
+      <div class="field">
+        <label>Método de Pagamento</label>
+        <select class="finput" id="entry-pay-method">
+          <option value="Dinheiro">Dinheiro</option>
+          <option value="MB/Multibanco">MB/Multibanco</option>
+          <option value="MB Way">MB Way</option>
+          <option value="Transferência Bancária">Transferência Bancária</option>
+        </select>
+      </div>
       <div style="display:none"><select id="staff-select"></select></div>
       <button class="save-btn" onclick="saveEntry()">Guardar Registo</button>
     </div>
@@ -352,6 +361,15 @@
         </div>
       </div>
       <div class="field"><label>Funcionária</label><select class="finput" id="edit-staff"></select></div>
+      <div class="field">
+        <label>Método de Pagamento</label>
+        <select class="finput" id="edit-pay-method">
+          <option value="Dinheiro">Dinheiro</option>
+          <option value="MB/Multibanco">MB/Multibanco</option>
+          <option value="MB Way">MB Way</option>
+          <option value="Transferência Bancária">Transferência Bancária</option>
+        </select>
+      </div>
       <button class="save-btn" onclick="saveEditEntry()">Guardar Alterações</button>
     </div>
   </div>
@@ -411,6 +429,15 @@
         <label>Vendida por</label>
         <select class="finput" id="prod-staff"></select>
       </div>
+      <div class="field">
+        <label>Método de Pagamento</label>
+        <select class="finput" id="prod-pay-method">
+          <option value="Dinheiro">Dinheiro</option>
+          <option value="MB/Multibanco">MB/Multibanco</option>
+          <option value="MB Way">MB Way</option>
+          <option value="Transferência Bancária">Transferência Bancária</option>
+        </select>
+      </div>
       <button class="save-btn" onclick="saveProduct()">Guardar Produto</button>
     </div>
   </div>
@@ -431,9 +458,9 @@
 </div>
 
 <!-- Scripts — ordem importante -->
-<script src="app.js?v=20260322"></script>
-<script src="hr.js?v=20260322"></script>
-<script src="firebase.js?v=20260322"></script>
+<script src="app.js?v=20260323"></script>
+<script src="hr.js?v=20260323"></script>
+<script src="firebase.js?v=20260323"></script>
 
 </body>
 </html>
