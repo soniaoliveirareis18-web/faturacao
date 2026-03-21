@@ -673,9 +673,13 @@ function renderFeriasTab(hr, isOwner){
         style=`background:${ft.colorD};border:2px solid ${ft.color};opacity:${folga.approved?'1':'0.6'}`;
         cls='cal-day'; title=ft.emoji+' '+ft.label+(folga.approved?' (aprovado)':' (pendente)');
       } else if(isVacApp){
-        cls='cal-day vacation-approved'; title='Férias aprovadas';
+        cls='cal-day vacation-approved';
+        title=currentRole==='owner'?'Férias aprovadas — toca para remover':'Férias aprovadas — contacta a Sónia para alterar';
+        // Owner can click to remove, staff cannot
+        if(currentRole==='owner') dataAttrs=`data-date="${ds}" data-staff="${hrStaff}"`;
       } else if(isVacPend){
-        cls='cal-day vacation-pending'; title='Férias pendentes';
+        cls='cal-day vacation-pending'; title='Férias pendentes — toca para remover';
+        dataAttrs=`data-date="${ds}" data-staff="${hrStaff}"`;
       } else if(isToday){
         cls='cal-day today-d';
         if(exceptional) label='⭐'+d;

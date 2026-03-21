@@ -107,6 +107,7 @@ const persistPins   = () => localStorage.setItem('sr_pins',   JSON.stringify(use
 // ═══════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
   if(typeof setupHRDelegation === 'function') setupHRDelegation();
+  setupEventDelegation();
   const now = new Date();
   const dateStr = now.toLocaleDateString('pt-PT',{day:'numeric',month:'short',year:'numeric'});
   document.getElementById('todayLabel') && (document.getElementById('todayLabel').textContent = dateStr);
@@ -208,6 +209,7 @@ function checkPin() {
     if (role === 'owner') {
       document.getElementById('owner-mode').style.display = 'block';
       if(typeof setupHRDelegation === 'function') setupHRDelegation();
+      setupEventDelegation();
       renderAll();
       setTimeout(showPendingAlert, 300);
     } else {
@@ -1173,7 +1175,10 @@ function saveAgAppointment(){
 // ═══════════════════════════════════════════════════════════
 //  GLOBAL EVENT DELEGATION
 // ═══════════════════════════════════════════════════════════
+let _eventDelegationReady = false;
 function setupEventDelegation() {
+  if(_eventDelegationReady) return;
+  _eventDelegationReady = true;
   // Single listener on document for all data-action elements
   document.addEventListener('click', function(e) {
     const el = e.target.closest('[data-action]');
