@@ -16,13 +16,16 @@ function getHR(name){
 }
 
 function renderEquipa(){
-  if(!hrStaff) hrStaff = staff[0]||'';
+  const isOwner = currentRole==='owner';
+  // Always ensure hrStaff is valid for current role
+  if(isOwner){
+    if(!hrStaff || !staff.includes(hrStaff)) hrStaff = staff[0]||'';
+  } else {
+    hrStaff = currentUser;
+  }
   const wrap = document.getElementById('equipa-content');
   if(!wrap) return;
-
-  const isOwner = currentRole==='owner';
   const visibleStaff = isOwner ? staff : [currentUser];
-  if(!isOwner) hrStaff = currentUser;
 
   // Build HTML without any inline onclick
   wrap.innerHTML = `
@@ -327,22 +330,65 @@ function isWithin24h(dateStr){
 
 function openAddHoursModal(){
   const isOwner = currentRole === 'owner';
-  // Staff can only register today or yesterday (within 24h)
-  const defaultDate = new Date().toLocaleDateString('pt-PT');
-  const date = prompt('Data (DD/MM/AAAA):', defaultDate);
-  if(!date) return;
-  const parsedDate = parseDate(date);
-  if(!isOwner && !isWithin24h(parsedDate)){
-    alert('Só podes registar horas das últimas 24h.\nPara datas anteriores, pede à Sónia.');
-    return;
-  }
-  const total=parseFloat(prompt('Total de horas trabalhadas:'));
-  if(!total||total<=0){ alert('Horas inválidas.'); return; }
-  const note=prompt('Nota (opcional):')||'';
-  const hr=getHR(hrStaff);
-  hr.hours.unshift({id:Date.now()+'',date:parsedDate,total,note,approved:false,rejected:false});
-  persistHR(); renderEquipa();
-  showToast('✓ Horas submetidas para aprovação!','success');
+  const defaultDate = new Date().toISOString().slice(0,10);
+
+  // Build inline modal — no prompt() which blocks iOS
+  const existing = document.getElementById('hours-modal-overlay');
+  if(existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'hours-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:600;background:rgba(10,8,6,.88);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center';
+
+  overlay.innerHTML = `
+    <div style="background:var(--s1);border:1px solid var(--border2);border-radius:24px 24px 0 0;width:100%;padding:0 0 calc(env(safe-area-inset-bottom)+16px);animation:slideUp .25s cubic-bezier(.4,0,.2,1)">
+      <div style="width:36px;height:4px;background:var(--border2);border-radius:2px;margin:12px auto 16px"></div>
+      <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:22px;color:var(--gold2);padding:0 18px 16px;border-bottom:1px solid var(--border)">Registar Horas</div>
+      <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2)">Data</label>
+          <input id="hm-date" type="date" value="${defaultDate}" style="background:var(--s2);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-family:'Syne',sans-serif;font-size:15px;font-weight:600;padding:12px 14px;width:100%;outline:none"/>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2)">Total de horas</label>
+          <input id="hm-total" type="number" inputmode="decimal" step="0.5" min="0.5" max="24" placeholder="Ex: 8" style="background:var(--s2);border:1px solid var(--border2);border-radius:10px;color:var(--gold2);font-family:'DM Mono',monospace;font-size:22px;padding:12px 14px;width:100%;outline:none"/>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2)">Nota (opcional)</label>
+          <input id="hm-note" type="text" placeholder="Ex: evento especial" style="background:var(--s2);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-family:'Syne',sans-serif;font-size:15px;font-weight:600;padding:12px 14px;width:100%;outline:none"/>
+        </div>
+        <button id="hm-save" style="width:100%;padding:15px;border-radius:12px;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;color:#100e0c;font-family:'Syne',sans-serif;font-size:15px;font-weight:800;cursor:pointer">Guardar</button>
+        <button id="hm-cancel" style="width:100%;padding:11px;border-radius:12px;background:none;border:1px solid var(--border2);color:var(--text2);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer">Cancelar</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', function(e){
+    if(e.target.id === 'hm-cancel' || e.target === overlay){ overlay.remove(); return; }
+    if(e.target.id !== 'hm-save') return;
+
+    const dateVal  = document.getElementById('hm-date').value;
+    const totalVal = parseFloat(document.getElementById('hm-total').value);
+    const noteVal  = (document.getElementById('hm-note').value||'').trim();
+
+    if(!dateVal){ showToast('Seleciona uma data.','error'); return; }
+    if(!totalVal||totalVal<=0){ showToast('Introduz um número de horas válido.','error'); return; }
+
+    const parsedDate = dateVal; // already YYYY-MM-DD from date input
+    if(!isOwner && !isWithin24h(parsedDate)){
+      showToast('Só podes registar horas das últimas 24h.','error'); return;
+    }
+
+    const hr = getHR(hrStaff);
+    const autoApprove = isOwner;
+    hr.hours.unshift({id:Date.now()+'',date:parsedDate,total:totalVal,note:noteVal,approved:autoApprove,rejected:false});
+    persistHR();
+    overlay.remove();
+    renderEquipa();
+    updateBadges();
+    showToast(autoApprove ? '✓ Horas registadas e aprovadas!' : '✓ Horas submetidas para aprovação!','success');
+  });
 }
 
 function approveHours(name,id,approve){
@@ -657,14 +703,54 @@ function renderFormacaoTab(hr, isOwner){
 }
 
 function openAddTrainingModal(){
-  const name=prompt('Nome da formação:'); if(!name) return;
-  const hours=parseFloat(prompt('Horas de formação:')); if(!hours||hours<=0){ alert('Horas inválidas.'); return; }
-  const dateRaw=prompt('Data (DD/MM/AAAA):', new Date().toLocaleDateString('pt-PT'));
-  if(!dateRaw) return;
-  const hr=getHR(hrStaff);
-  hr.training.unshift({id:Date.now()+'',name:name.trim(),hours,date:parseDate(dateRaw)});
-  persistHR(); renderEquipa();
-  showToast('✓ Formação registada!','success');
+  const defaultDate = new Date().toISOString().slice(0,10);
+  const existing = document.getElementById('training-modal-overlay');
+  if(existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'training-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:600;background:rgba(10,8,6,.88);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center';
+
+  overlay.innerHTML = `
+    <div style="background:var(--s1);border:1px solid var(--border2);border-radius:24px 24px 0 0;width:100%;padding:0 0 calc(env(safe-area-inset-bottom)+16px);animation:slideUp .25s cubic-bezier(.4,0,.2,1)">
+      <div style="width:36px;height:4px;background:var(--border2);border-radius:2px;margin:12px auto 16px"></div>
+      <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:22px;color:var(--gold2);padding:0 18px 16px;border-bottom:1px solid var(--border)">Registar Formação</div>
+      <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2)">Nome da formação</label>
+          <input id="tm-name" type="text" placeholder="Ex: Curso de Manicure" style="background:var(--s2);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-family:'Syne',sans-serif;font-size:15px;font-weight:600;padding:12px 14px;width:100%;outline:none"/>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2)">Horas de formação</label>
+          <input id="tm-hours" type="number" inputmode="decimal" step="0.5" min="0.5" placeholder="Ex: 8" style="background:var(--s2);border:1px solid var(--border2);border-radius:10px;color:var(--gold2);font-family:'DM Mono',monospace;font-size:22px;padding:12px 14px;width:100%;outline:none"/>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2)">Data</label>
+          <input id="tm-date" type="date" value="${defaultDate}" style="background:var(--s2);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-family:'Syne',sans-serif;font-size:15px;font-weight:600;padding:12px 14px;width:100%;outline:none"/>
+        </div>
+        <button id="tm-save" style="width:100%;padding:15px;border-radius:12px;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;color:#100e0c;font-family:'Syne',sans-serif;font-size:15px;font-weight:800;cursor:pointer">Guardar</button>
+        <button id="tm-cancel" style="width:100%;padding:11px;border-radius:12px;background:none;border:1px solid var(--border2);color:var(--text2);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer">Cancelar</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', function(e){
+    if(e.target.id==='tm-cancel'||e.target===overlay){ overlay.remove(); return; }
+    if(e.target.id !== 'tm-save') return;
+    const name  = (document.getElementById('tm-name').value||'').trim();
+    const hours = parseFloat(document.getElementById('tm-hours').value);
+    const date  = document.getElementById('tm-date').value;
+    if(!name){ showToast('Introduz o nome da formação.','error'); return; }
+    if(!hours||hours<=0){ showToast('Introduz um número de horas válido.','error'); return; }
+    if(!date){ showToast('Seleciona uma data.','error'); return; }
+    const hr = getHR(hrStaff);
+    hr.training.unshift({id:Date.now()+'',name,hours,date});
+    persistHR();
+    overlay.remove();
+    renderEquipa();
+    showToast('✓ Formação registada!','success');
+  });
 }
 
 function deleteTraining(name,id){

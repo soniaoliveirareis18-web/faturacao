@@ -543,7 +543,7 @@ function renderGoal(){
 }
 
 function editGoal(){
-  const v=prompt('Objetivo mensal de faturação (€):',goalVal||'');
+  const v=window.prompt('Objetivo mensal de faturação (€):',goalVal||'');
   if(v===null) return;
   goalVal=parseFloat(v)||0;
   localStorage.setItem('sr_goal',goalVal);
@@ -944,8 +944,8 @@ function updateApptPayType(id,v){ const a=appts.find(x=>x.id===id); if(a){ a.pay
 function updateApptStaff(id,v){ const a=appts.find(x=>x.id===id); if(a){ a.staff=v; persistAppts(); } }
 function updateApptBilled(id,v){ const a=appts.find(x=>x.id===id); if(a){ a.billed=v; persistAppts(); } }
 function addExtraToAppt(id){
-  const svcName=prompt('Serviço extra:'); if(!svcName) return;
-  const val=parseFloat(prompt('Valor (€):')); if(!val||val<=0){ alert('Valor inválido.'); return; }
+  const svcName=window.prompt('Serviço extra:'); if(!svcName) return;
+  const val=parseFloat(window.prompt('Valor (€):')); if(!val||val<=0){ showToast('Valor inválido.','error'); return; }
   const a=appts.find(x=>x.id===id); if(!a) return;
   a.extras=a.extras||[];
   a.extras.push({svc:svcName.trim(),val});
@@ -1284,11 +1284,31 @@ function renderStaffCfg(){
   });
 }
 function changePin(name){
-  const newPin=prompt(`Novo PIN de 4 dígitos para ${name}:`);
-  if(!newPin||newPin.length!==4||!/^\d{4}$/.test(newPin)){ alert('PIN deve ter exactamente 4 dígitos.'); return; }
-  userPins[name]=newPin; persistPins();
-  renderStaffCfg();
-  showToast('✓ PIN de '+name+' atualizado!','success');
+  const existing = document.getElementById('pin-change-overlay');
+  if(existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'pin-change-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:600;background:rgba(10,8,6,.88);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <div style="background:var(--s1);border:1px solid var(--border2);border-radius:20px;width:100%;max-width:300px;padding:24px">
+      <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:20px;color:var(--gold2);margin-bottom:14px">PIN de ${name}</div>
+      <input id="pc-pin" type="number" inputmode="numeric" maxlength="4" placeholder="4 dígitos"
+        style="background:var(--s2);border:1px solid var(--border2);border-radius:10px;color:var(--gold2);font-family:'DM Mono',monospace;font-size:28px;padding:12px 14px;width:100%;outline:none;text-align:center;letter-spacing:8px;margin-bottom:12px"/>
+      <button id="pc-save" style="width:100%;padding:13px;border-radius:10px;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;color:#100e0c;font-family:'Syne',sans-serif;font-size:14px;font-weight:800;cursor:pointer;margin-bottom:8px">Guardar PIN</button>
+      <button id="pc-cancel" style="width:100%;padding:10px;border-radius:10px;background:none;border:1px solid var(--border2);color:var(--text2);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer">Cancelar</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(()=>document.getElementById('pc-pin')?.focus(),100);
+  overlay.addEventListener('click', function(e){
+    if(e.target.id==='pc-cancel'||e.target===overlay){ overlay.remove(); return; }
+    if(e.target.id!=='pc-save') return;
+    const val = (document.getElementById('pc-pin').value||'').trim();
+    if(val.length!==4||!/^\d{4}$/.test(val)){ showToast('PIN deve ter exactamente 4 dígitos.','error'); return; }
+    userPins[name]=val; persistPins();
+    overlay.remove();
+    renderStaffCfg();
+    showToast('✓ PIN de '+name+' atualizado!','success');
+  });
 }
 function removeStaffMember(name){
   if(!confirm('Apagar "'+name+'"?')) return;
