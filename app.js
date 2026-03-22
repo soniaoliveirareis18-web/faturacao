@@ -273,11 +273,38 @@ function renderStaffMode() {
             <div class="status-badge ${a.status==='done'?'active-done':''}" data-action="staff-done" data-id="${a.id}" title="Veio">✓</div>
             <div class="status-badge ${a.status==='noshow'?'active-noshow':''}" data-action="staff-noshow" data-id="${a.id}" title="Não veio">✕</div>
           </div>
-          ${a.status==='done'||a.status==='noshow'?`<div style="margin-top:8px;display:flex;align-items:center;gap:8px">
-            <label style="font-size:11px;color:var(--text2);font-weight:700;white-space:nowrap">Pagamento:</label>
-            <select data-action="staff-pay" data-id="${a.id}" style="flex:1;background:var(--s2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:'Syne',sans-serif;font-size:12px;padding:6px 8px;outline:none">
-              ${['Dinheiro','MB/Multibanco','MB Way','Transferência Bancária'].map(p=>`<option value="${p}" ${(a.payType||'Dinheiro')===p?'selected':''}>${p}</option>`).join('')}
-            </select>
+          ${a.status==='done'||a.status==='noshow'?`
+          <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <label style="font-size:11px;color:var(--text2);font-weight:700;white-space:nowrap;flex-shrink:0">Pagamento:</label>
+              <select data-action="staff-pay" data-id="${a.id}" style="flex:1;background:var(--s2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:'Syne',sans-serif;font-size:12px;padding:6px 8px;outline:none">
+                ${['Dinheiro','MB/Multibanco','MB Way','Transferência Bancária'].map(p=>`<option value="${p}" ${(a.payType||'Dinheiro')===p?'selected':''}>${p}</option>`).join('')}
+              </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <label style="font-size:11px;color:var(--text2);font-weight:700;white-space:nowrap;flex-shrink:0">Tipo:</label>
+              <button data-action="staff-fat" data-id="${a.id}"
+                style="flex:1;padding:6px;border-radius:8px;border:1px solid ${(a.billed||'fat')==='fat'?'var(--green)':'var(--border2)'};
+                background:${(a.billed||'fat')==='fat'?'var(--green-d)':'var(--s2)'};
+                color:${(a.billed||'fat')==='fat'?'var(--green)':'var(--text2)'};
+                font-family:'Syne',sans-serif;font-size:11px;font-weight:700;cursor:pointer">
+                ✓ Faturado
+              </button>
+              <button data-action="staff-nfat" data-id="${a.id}"
+                style="flex:1;padding:6px;border-radius:8px;border:1px solid ${(a.billed||'fat')==='nfat'?'var(--red)':'var(--border2)'};
+                background:${(a.billed||'fat')==='nfat'?'var(--red-d)':'var(--s2)'};
+                color:${(a.billed||'fat')==='nfat'?'var(--red)':'var(--text2)'};
+                font-family:'Syne',sans-serif;font-size:11px;font-weight:700;cursor:pointer">
+                ✕ Não Fat.
+              </button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <label style="font-size:11px;color:var(--text2);font-weight:700;white-space:nowrap;flex-shrink:0">Valor (€):</label>
+              <input type="number" inputmode="decimal" step="0.5" min="0"
+                value="${a.paid||a.price||0}"
+                data-action="staff-val" data-id="${a.id}"
+                style="flex:1;background:var(--s2);border:1px solid var(--border2);border-radius:8px;color:var(--gold2);font-family:'DM Mono',monospace;font-size:14px;padding:6px 10px;outline:none"/>
+            </div>
           </div>`:''}
         </div>
       </div>`).join('')
@@ -297,6 +324,21 @@ function staffSetApptPayType(id, payType) {
   a.payType = payType;
   persistAppts();
   showToast('✓ Método de pagamento guardado!','success');
+}
+
+function staffSetApptBilled(id, billed) {
+  const a = appts.find(x => String(x.id)===String(id)); if(!a) return;
+  a.billed = billed;
+  persistAppts();
+  renderStaffMode();
+  showToast(billed==='fat' ? '✓ Marcado como Faturado' : '✓ Marcado como Não Faturado','success');
+}
+
+function staffSetApptValue(id, val) {
+  const a = appts.find(x => String(x.id)===String(id)); if(!a) return;
+  a.paid = val;
+  persistAppts();
+  showToast('✓ Valor actualizado!','success');
 }
 
 function showStaffEquipa(){
@@ -683,9 +725,80 @@ function renderAnalise(){
   renderBarChart(cutStr);
   renderComparison();
   renderCatRank(sub);
+  renderPaymentTotals();
   renderProductsAnalysis(sub);
   renderBestSeller();
   renderStaffAnalysis(sub);
+}
+
+function renderPaymentTotals(){
+  const wrap = document.getElementById('payment-totals-today');
+  if(!wrap) return;
+  const todayEntries = entries.filter(e => e.date === today());
+
+  // Calculate totals by payment method — all staff, all types
+  const methods = ['Dinheiro','MB/Multibanco','MB Way','Transferência Bancária'];
+  const icons   = {'Dinheiro':'💵','MB/Multibanco':'🏧','MB Way':'📱','Transferência Bancária':'🏦'};
+
+  const totalByMethod = (staffFilter) => {
+    const filtered = staffFilter
+      ? todayEntries.filter(e => e.staff === staffFilter)
+      : todayEntries;
+    return methods.map(m => ({
+      method: m,
+      icon:   icons[m],
+      total:  filtered.filter(e => (e.payMethod||'Dinheiro') === m).reduce((a,e) => a+e.val, 0),
+      count:  filtered.filter(e => (e.payMethod||'Dinheiro') === m).length,
+    }));
+  };
+
+  // Staff filter state
+  const selectedStaff = wrap.dataset.staff || 'all';
+
+  // Staff selector buttons
+  const staffBtns = ['all',...staff].map(s => {
+    const label = s === 'all' ? 'Todas' : s;
+    const active = selectedStaff === s;
+    return `<button data-action="pay-filter" data-staff="${s}"
+      style="padding:7px 14px;border-radius:20px;border:1px solid ${active?'var(--gold)':'var(--border2)'};
+      background:${active?'var(--gold-d)':'var(--s2)'};color:${active?'var(--gold2)':'var(--text2)'};
+      font-family:'Syne',sans-serif;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">
+      ${label}
+    </button>`;
+  }).join('');
+
+  const totals = totalByMethod(selectedStaff === 'all' ? null : selectedStaff);
+  const grandTotal = totals.reduce((a,t) => a+t.total, 0);
+
+  const rows = totals.map(t => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:16px">${t.icon}</span>
+        <span style="font-size:13px;font-weight:700;color:var(--text)">${t.method}</span>
+        <span style="font-size:10px;color:var(--text3)">${t.count} reg.</span>
+      </div>
+      <span style="font-family:'DM Mono',monospace;font-size:14px;color:${t.total>0?'var(--gold2)':'var(--text3)'};font-weight:600">${fmt(t.total)}</span>
+    </div>`).join('');
+
+  wrap.innerHTML = `
+    <div style="display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:10px;padding-bottom:2px">
+      ${staffBtns}
+    </div>
+    <div style="background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:6px">
+      ${rows}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;margin-top:2px">
+        <span style="font-size:12px;font-weight:800;color:var(--text);letter-spacing:.5px">TOTAL DIA</span>
+        <span style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:var(--gold2)">${fmt(grandTotal)}</span>
+      </div>
+    </div>`;
+
+  // Attach delegation for staff filter buttons
+  wrap.querySelectorAll('[data-action="pay-filter"]').forEach(btn => {
+    btn.addEventListener('click', function() {
+      wrap.dataset.staff = this.dataset.staff;
+      renderPaymentTotals();
+    });
+  });
 }
 
 function renderProductsAnalysis(sub){
@@ -1248,6 +1361,17 @@ function setupEventDelegation() {
     if (action==='staff-done')  { staffSetApptStatus(id, 'done'); return; }
     if (action==='staff-noshow'){ staffSetApptStatus(id, 'noshow'); return; }
     if (action==='staff-pay')   { staffSetApptPayType(id, el.value); return; }
+    if (action==='staff-fat')   { staffSetApptBilled(id, 'fat'); return; }
+    if (action==='staff-nfat')  { staffSetApptBilled(id, 'nfat'); return; }
+  });
+
+  // Change listener for staff value inputs
+  document.addEventListener('change', function(e) {
+    const el = e.target.closest('[data-action="staff-val"]');
+    if(!el) return;
+    const id  = el.dataset.id;
+    const val = parseFloat(el.value);
+    if(!isNaN(val) && val >= 0) staffSetApptValue(id, val);
   });
 }
 
