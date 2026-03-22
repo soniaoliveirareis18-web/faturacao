@@ -10,7 +10,7 @@
 <title>Sónia Reis · Faturação</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
 
-<link rel="stylesheet" href="style.css?v=20260331"/>
+<link rel="stylesheet" href="style.css?v=20260332"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Firebase SDK (v8 compat — carrega só se configurado) -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -264,12 +264,26 @@
   </div>
 
   <!-- FAB -->
-  <div style="position:fixed;right:18px;bottom:calc(68px + env(safe-area-inset-bottom) + 14px);z-index:150;display:flex;flex-direction:column;gap:10px;align-items:flex-end">
-    <button class="fab" id="fab-product" onclick="openProductModal()" style="width:44px;height:44px;border-radius:22px;background:var(--s2);border:2px solid var(--gold);box-shadow:0 4px 16px rgba(201,169,110,.2)" title="Registar Produto">
-      <svg viewBox="0 0 24 24" fill="none" stroke="var(--gold2)" stroke-width="2.5" width="20" height="20"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
-    </button>
-    <button class="fab" onclick="openModal()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  <div id="fab-wrap" style="position:fixed;right:18px;bottom:calc(68px + env(safe-area-inset-bottom) + 14px);z-index:150;display:flex;flex-direction:column;gap:10px;align-items:flex-end">
+    <!-- Expandable options (hidden by default) -->
+    <div id="fab-menu" style="display:none;flex-direction:column;gap:8px;align-items:flex-end">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="background:rgba(10,8,6,.85);color:var(--text);font-family:'Syne',sans-serif;font-size:12px;font-weight:700;padding:5px 10px;border-radius:8px;white-space:nowrap">Produto</span>
+        <button onclick="fabChoose('product')" style="width:46px;height:46px;border-radius:23px;background:var(--s2);border:2px solid var(--gold);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(201,169,110,.25)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--gold2)" stroke-width="2.5" width="20" height="20"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+        </button>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="background:rgba(10,8,6,.85);color:var(--text);font-family:'Syne',sans-serif;font-size:12px;font-weight:700;padding:5px 10px;border-radius:8px;white-space:nowrap">Serviço</span>
+        <button onclick="fabChoose('service')" style="width:46px;height:46px;border-radius:23px;background:var(--s2);border:2px solid var(--gold);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(201,169,110,.25)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--gold2)" stroke-width="2.5" width="20" height="20"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M12 8v4l3 3"/></svg>
+        </button>
+      </div>
+    </div>
+    <!-- Main FAB button -->
+    <button class="fab" id="fab-main" onclick="toggleFabMenu()">
+      <svg id="fab-icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <svg id="fab-icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="display:none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
   </div>
 
@@ -461,9 +475,9 @@
 </div>
 
 <!-- Scripts — ordem importante -->
-<script src="app.js?v=20260331"></script>
-<script src="hr.js?v=20260331"></script>
-<script src="firebase.js?v=20260331"></script>
+<script src="app.js?v=20260332"></script>
+<script src="hr.js?v=20260332"></script>
+<script src="firebase.js?v=20260332"></script>
 
 </body>
 </html>

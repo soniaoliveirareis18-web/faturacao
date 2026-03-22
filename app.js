@@ -430,6 +430,37 @@ function showView(name) {
 // ═══════════════════════════════════════════════════════════
 //  ENTRY MODAL
 // ═══════════════════════════════════════════════════════════
+let _fabOpen = false;
+function toggleFabMenu(){
+  _fabOpen = !_fabOpen;
+  const menu = document.getElementById('fab-menu');
+  const iconPlus = document.getElementById('fab-icon-plus');
+  const iconX    = document.getElementById('fab-icon-x');
+  const fab      = document.getElementById('fab-main');
+  if(menu){
+    menu.style.display = _fabOpen ? 'flex' : 'none';
+    menu.style.flexDirection = 'column';
+  }
+  if(iconPlus) iconPlus.style.display = _fabOpen ? 'none' : '';
+  if(iconX)    iconX.style.display    = _fabOpen ? '' : 'none';
+  if(fab) fab.style.background = _fabOpen
+    ? 'rgba(201,169,110,.3)'
+    : 'linear-gradient(135deg,var(--gold),var(--gold2))';
+}
+function fabChoose(type){
+  _fabOpen = false;
+  const menu = document.getElementById('fab-menu');
+  const iconPlus = document.getElementById('fab-icon-plus');
+  const iconX    = document.getElementById('fab-icon-x');
+  const fab      = document.getElementById('fab-main');
+  if(menu) menu.style.display = 'none';
+  if(iconPlus) iconPlus.style.display = '';
+  if(iconX)    iconX.style.display    = 'none';
+  if(fab) fab.style.background = 'linear-gradient(135deg,var(--gold),var(--gold2))';
+  if(type === 'product') openProductModal();
+  else openModal();
+}
+
 function openModal() {
   selSvcs = [];
   document.querySelectorAll('.service-btn').forEach(b=>b.classList.remove('selected'));
@@ -1441,6 +1472,21 @@ function setupEventDelegation() {
     if (action==='staff-pay')   { staffSetApptPayType(id, el.value); return; }
     if (action==='staff-fat')   { staffSetApptBilled(id, 'fat'); return; }
     if (action==='staff-nfat')  { staffSetApptBilled(id, 'nfat'); return; }
+  });
+
+  // Close FAB menu when clicking outside
+  document.addEventListener('click', function(e){
+    if(_fabOpen && !e.target.closest('#fab-wrap')){
+      _fabOpen = false;
+      const menu = document.getElementById('fab-menu');
+      const iconPlus = document.getElementById('fab-icon-plus');
+      const iconX    = document.getElementById('fab-icon-x');
+      const fab      = document.getElementById('fab-main');
+      if(menu) menu.style.display = 'none';
+      if(iconPlus) iconPlus.style.display = '';
+      if(iconX) iconX.style.display = 'none';
+      if(fab) fab.style.background = 'linear-gradient(135deg,var(--gold),var(--gold2))';
+    }
   });
 
   // Change listener for staff value inputs
