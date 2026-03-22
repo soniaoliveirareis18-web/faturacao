@@ -107,6 +107,24 @@ var persistPins    = function() { localStorage.setItem('sr_pins',     JSON.strin
 var persistGoal    = function() { localStorage.setItem('sr_goal',    goalVal); };
 
 // ═══════════════════════════════════════════════════════════
+//  FECHO DO DIA — Autorização
+// ═══════════════════════════════════════════════════════════
+function getFechoAuth(){
+  try {
+    const f = JSON.parse(localStorage.getItem('sr_fecho')||'{}');
+    if(f.date && f.date === today()) return f;
+    // Expired — clear
+    localStorage.removeItem('sr_fecho');
+    return null;
+  } catch(e){ return null; }
+}
+function setFechoAuth(active){
+  if(active) localStorage.setItem('sr_fecho', JSON.stringify({date: today()}));
+  else       localStorage.removeItem('sr_fecho');
+}
+function isFechoAuthorized(){ return !!getFechoAuth(); }
+
+// ═══════════════════════════════════════════════════════════
 //  BOOT
 // ═══════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
@@ -241,6 +259,40 @@ function doLogout() {
 //  STAFF MODE (simplified)
 // ═══════════════════════════════════════════════════════════
 function renderStaffMode() {
+  // Fecho do dia — show if authorized
+  const fechoWrap = document.getElementById('staff-fecho-wrap');
+  if(fechoWrap){
+    if(isFechoAuthorized()){
+      const methods = ['Dinheiro','MB/Multibanco','MB Way','Transferência Bancária'];
+      const icons   = {'Dinheiro':'💵','MB/Multibanco':'🏧','MB Way':'📱','Transferência Bancária':'🏦'};
+      const todayE  = entries.filter(e => e.date===today());
+      const rows = methods.map(m => {
+        const total = todayE.filter(e=>(e.payMethod||'Dinheiro')===m).reduce((a,e)=>a+e.val,0);
+        const count = todayE.filter(e=>(e.payMethod||'Dinheiro')===m).length;
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:16px">${icons[m]}</span>
+            <span style="font-size:13px;font-weight:700;color:var(--text)">${m}</span>
+            <span style="font-size:10px;color:var(--text3)">${count} reg.</span>
+          </div>
+          <span style="font-family:'DM Mono',monospace;font-size:14px;color:${total>0?'var(--gold2)':'var(--text3)'};font-weight:600">${fmt(total)}</span>
+        </div>`;
+      }).join('');
+      const grand = todayE.reduce((a,e)=>a+e.val,0);
+      fechoWrap.innerHTML = `
+        <div style="background:var(--green-d);border:1px solid var(--green);border-radius:14px;padding:14px;margin-bottom:16px">
+          <div style="font-size:11px;font-weight:800;letter-spacing:1px;color:var(--green);margin-bottom:10px">💰 FECHO DO DIA</div>
+          ${rows}
+          <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;margin-top:2px">
+            <span style="font-size:12px;font-weight:800;color:var(--text)">TOTAL DIA</span>
+            <span style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:var(--gold2)">${fmt(grand)}</span>
+          </div>
+        </div>`;
+    } else {
+      fechoWrap.innerHTML = '';
+    }
+  }
+
   const myEntries = entries.filter(e => e.date===today() && e.staff===currentUser);
   const myTotal   = myEntries.reduce((a,e)=>a+e.val,0);
   const totalEl = document.getElementById('staff-my-total');
@@ -780,6 +832,23 @@ function renderPaymentTotals(){
       <span style="font-family:'DM Mono',monospace;font-size:14px;color:${t.total>0?'var(--gold2)':'var(--text3)'};font-weight:600">${fmt(t.total)}</span>
     </div>`).join('');
 
+  const isAuth = isFechoAuthorized();
+  const fechoBtn = `
+    <div style="margin-top:10px">
+      <button data-action="toggle-fecho"
+        style="width:100%;padding:12px;border-radius:12px;
+        border:1px solid ${isAuth?'var(--green)':'var(--border2)'};
+        background:${isAuth?'var(--green-d)':'var(--s2)'};
+        color:${isAuth?'var(--green)':'var(--text2)'};
+        font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;
+        display:flex;align-items:center;justify-content:center;gap:8px">
+        ${isAuth
+          ? '✅ Fecho autorizado hoje — toca para revogar'
+          : '🔓 Autorizar funcionárias a fazer fecho do dia'}
+      </button>
+      ${isAuth?'<div style="font-size:10px;color:var(--text3);text-align:center;margin-top:4px">Expira automaticamente à meia-noite</div>':''}
+    </div>`;
+
   wrap.innerHTML = `
     <div style="display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:10px;padding-bottom:2px">
       ${staffBtns}
@@ -790,7 +859,8 @@ function renderPaymentTotals(){
         <span style="font-size:12px;font-weight:800;color:var(--text);letter-spacing:.5px">TOTAL DIA</span>
         <span style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:var(--gold2)">${fmt(grandTotal)}</span>
       </div>
-    </div>`;
+    </div>
+    ${fechoBtn}`;
 
   // Attach delegation for staff filter buttons
   wrap.querySelectorAll('[data-action="pay-filter"]').forEach(btn => {
@@ -1350,6 +1420,14 @@ function setupEventDelegation() {
     // Product modal type toggle (handled via onclick in HTML, but guard here)
     if (action==='prod-fat')  { setProdType('fat'); return; }
     if (action==='prod-nfat') { setProdType('nfat'); return; }
+
+    // Fecho do dia
+    if (action==='toggle-fecho') {
+      setFechoAuth(!isFechoAuthorized());
+      renderPaymentTotals();
+      showToast(isFechoAuthorized() ? '✅ Fecho autorizado para hoje!' : 'Autorização removida.', 'success');
+      return;
+    }
 
     // Pagination
     if (action==='hist-prev')     { histPage--;    renderHist(false); return; }
