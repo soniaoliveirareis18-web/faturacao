@@ -145,6 +145,9 @@ document.addEventListener('DOMContentLoaded', () => {
   renderSvcGrid();
   populateStaffSelects();
   renderStaffCfg();
+
+  // Initialize Firebase if configured (firebase.js loaded after app.js)
+  if(typeof initFirebase === 'function') initFirebase();
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -263,7 +266,7 @@ function renderStaffMode() {
   const fechoWrap = document.getElementById('staff-fecho-wrap');
   if(fechoWrap){
     if(isFechoAuthorized()){
-      const methods = ['Dinheiro','MB/Multibanco','MB Way','Transferência Bancária'];
+      const methods = PAYMENT_METHODS;
       const icons   = {'Dinheiro':'💵','MB/Multibanco':'🏧','MB Way':'📱','Transferência Bancária':'🏦'};
       const todayE  = entries.filter(e => e.date===today());
       const rows = methods.map(m => {
@@ -330,7 +333,7 @@ function renderStaffMode() {
             <div style="display:flex;align-items:center;gap:8px">
               <label style="font-size:11px;color:var(--text2);font-weight:700;white-space:nowrap;flex-shrink:0">Pagamento:</label>
               <select data-action="staff-pay" data-id="${a.id}" style="flex:1;background:var(--s2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:'Syne',sans-serif;font-size:12px;padding:6px 8px;outline:none">
-                ${['Dinheiro','MB/Multibanco','MB Way','Transferência Bancária'].map(p=>`<option value="${p}" ${(a.payType||'Dinheiro')===p?'selected':''}>${p}</option>`).join('')}
+                ${PAYMENT_METHODS.map(p=>`<option value="${p}" ${(a.payType||'Dinheiro')===p?'selected':''}>${p}</option>`).join('')}
               </select>
             </div>
             <div style="display:flex;align-items:center;gap:8px">
@@ -555,7 +558,7 @@ function addFreeService(){
   const val=parseFloat(document.getElementById('free-svc-val')?.value||0);
   if(!name){ showToast('Escreve o nome do serviço ou produto.','error'); return; }
   if(!val||val<=0){ showToast('Introduz um valor válido.','error'); return; }
-  selSvcs.push({svc:{n:name,p:val,v:true},val,staff:staff[0]||''});
+  selSvcs.push({svc:{n:name,p:val,v:true},val,staff:currentRole==='staff'?currentUser:(staff[0]||'')});
   document.getElementById('free-svc-name').value='';
   document.getElementById('free-svc-val').value='';
   renderBasket();
@@ -697,11 +700,12 @@ function saveProduct(){
 }
 
 function deleteEntry(id){
-  if(!confirm('Apagar este registo?')) return;
-  entries=entries.filter(e=>String(e.id)!==String(id));
-  persist(); renderAll();
-  const hist=document.getElementById('view-hist');
-  if(hist?.classList.contains('active')) renderHist();
+  inlineConfirm('Apagar este registo?','Esta ação não pode ser desfeita.',function(){
+    entries=entries.filter(e=>String(e.id)!==String(id));
+    persist(); renderAll();
+    const hist=document.getElementById('view-hist');
+    if(hist?.classList.contains('active')) renderHist();
+  });
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -766,12 +770,35 @@ function renderGoal(){
 }
 
 function editGoal(){
-  const v=window.prompt('Objetivo mensal de faturação (€):',goalVal||'');
-  if(v===null) return;
-  goalVal=parseFloat(v)||0;
-  localStorage.setItem('sr_goal',goalVal);
-  if(typeof persistGoal === 'function') persistGoal();
-  renderGoal();
+  const existing=document.getElementById('goal-modal-overlay');
+  if(existing) existing.remove();
+  const overlay=document.createElement('div');
+  overlay.id='goal-modal-overlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:600;background:rgba(10,8,6,.88);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML=`
+    <div style="background:var(--s1);border:1px solid var(--border2);border-radius:20px;width:100%;max-width:300px;padding:24px">
+      <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:20px;color:var(--gold2);margin-bottom:14px">Meta Mensal</div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">
+        <label style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2)">Objetivo de faturação (€)</label>
+        <input id="gm-val" type="number" inputmode="decimal" step="100" min="0" value="${goalVal||''}" placeholder="Ex: 5000"
+          style="background:var(--s2);border:1px solid var(--border2);border-radius:10px;color:var(--gold2);font-family:'DM Mono',monospace;font-size:22px;padding:12px 14px;width:100%;outline:none;text-align:center"/>
+      </div>
+      <button id="gm-save" style="width:100%;padding:13px;border-radius:10px;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;color:#100e0c;font-family:'Syne',sans-serif;font-size:14px;font-weight:800;cursor:pointer;margin-bottom:8px">Guardar</button>
+      <button id="gm-cancel" style="width:100%;padding:10px;border-radius:10px;background:none;border:1px solid var(--border2);color:var(--text2);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer">Cancelar</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(()=>document.getElementById('gm-val')?.focus(),100);
+  overlay.addEventListener('click',function(e){
+    if(e.target.id==='gm-cancel'||e.target===overlay){ overlay.remove(); return; }
+    if(e.target.id!=='gm-save') return;
+    const v=parseFloat(document.getElementById('gm-val').value)||0;
+    goalVal=v;
+    localStorage.setItem('sr_goal',goalVal);
+    if(typeof persistGoal === 'function') persistGoal();
+    overlay.remove();
+    renderGoal();
+    showToast('✓ Meta atualizada!','success');
+  });
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -820,7 +847,7 @@ function renderPaymentTotals(){
   const todayEntries = entries.filter(e => e.date === today());
 
   // Calculate totals by payment method — all staff, all types
-  const methods = ['Dinheiro','MB/Multibanco','MB Way','Transferência Bancária'];
+  const methods = PAYMENT_METHODS;
   const icons   = {'Dinheiro':'💵','MB/Multibanco':'🏧','MB Way':'📱','Transferência Bancária':'🏦'};
 
   const totalByMethod = (staffFilter) => {
@@ -1234,7 +1261,7 @@ function renderClients(resetPage=true){
 }
 
 function openClientModal(id){
-  const c=clients.find(x=>x.id==id); if(!c) return;
+  const c=clients.find(x=>String(x.id)===String(id)); if(!c) return;
   document.getElementById('client-modal-title').textContent=c.name+(c.vip?' ⭐':'');
   const body=document.getElementById('client-modal-body');
   const staffOpts=staff.map(s=>`<option value="${s}">${s}</option>`).join('');
@@ -1256,7 +1283,7 @@ function openClientModal(id){
 function closeClientModal(){ document.getElementById('client-modal-bg').classList.remove('open'); }
 function clientModalBgClick(e){ if(e.target===document.getElementById('client-modal-bg')) closeClientModal(); }
 function saveClientModal(id){
-  const c=clients.find(x=>x.id==id); if(!c) return;
+  const c=clients.find(x=>String(x.id)===String(id)); if(!c) return;
   c.phone   =document.getElementById('cm-phone').value.trim();
   c.birthday=document.getElementById('cm-bday').value;
   c.notes   =document.getElementById('cm-notes').value.trim();
@@ -1288,7 +1315,7 @@ function apptCardHTML(a){
   const extras=(a.extras||[]);
   const totalPaid=(a.paid||0)+extras.reduce((s,e)=>s+e.val,0);
   const statusClass=a.status==='done'?'status-done':a.status==='noshow'?'status-noshow':'';
-  const payOpts=['Dinheiro','MB/Multibanco','MB Way','Transferência Bancária'].map(p=>`<option value="${p}" ${a.payType===p?'selected':''}>${p}</option>`).join('');
+  const payOpts=PAYMENT_METHODS.map(p=>`<option value="${p}" ${(a.payType||'Dinheiro')===p?'selected':''}>${p}</option>`).join('');
   return `<div class="appt-card ${statusClass}" id="appt-${a.id}">
     <div class="appt-header" data-action="toggle" data-id="${a.id}">
       <div class="appt-time">${a.time}</div>
@@ -1333,13 +1360,44 @@ function updateApptPayType(id,v){ const a=appts.find(x=>String(x.id)===String(id
 function updateApptStaff(id,v){ const a=appts.find(x=>String(x.id)===String(id)); if(a){ a.staff=v; persistAppts(); } }
 function updateApptBilled(id,v){ const a=appts.find(x=>String(x.id)===String(id)); if(a){ a.billed=v; persistAppts(); } }
 function addExtraToAppt(id){
-  const svcName=window.prompt('Serviço extra:'); if(!svcName) return;
-  const val=parseFloat(window.prompt('Valor (€):')); if(!val||val<=0){ showToast('Valor inválido.','error'); return; }
-  const a=appts.find(x=>String(x.id)===String(id)); if(!a) return;
-  a.extras=a.extras||[];
-  a.extras.push({svc:svcName.trim(),val});
-  persistAppts(); renderAgenda();
-  setTimeout(()=>document.getElementById('appt-'+id)?.classList.add('expanded'),30);
+  const existing=document.getElementById('extra-modal-overlay');
+  if(existing) existing.remove();
+  const overlay=document.createElement('div');
+  overlay.id='extra-modal-overlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:600;background:rgba(10,8,6,.88);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center';
+  overlay.innerHTML=`
+    <div style="background:var(--s1);border:1px solid var(--border2);border-radius:24px 24px 0 0;width:100%;padding:0 0 calc(env(safe-area-inset-bottom)+16px);animation:slideUp .25s cubic-bezier(.4,0,.2,1)">
+      <div style="width:36px;height:4px;background:var(--border2);border-radius:2px;margin:12px auto 16px"></div>
+      <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:22px;color:var(--gold2);padding:0 18px 16px;border-bottom:1px solid var(--border)">Serviço Extra</div>
+      <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2)">Serviço</label>
+          <input id="ex-name" type="text" placeholder="Ex: Verniz Gel Extra" style="background:var(--s2);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-family:'Syne',sans-serif;font-size:15px;font-weight:600;padding:12px 14px;width:100%;outline:none"/>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2)">Valor (€)</label>
+          <input id="ex-val" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0,00" style="background:var(--s2);border:1px solid var(--border2);border-radius:10px;color:var(--gold2);font-family:'DM Mono',monospace;font-size:22px;padding:12px 14px;width:100%;outline:none"/>
+        </div>
+        <button id="ex-save" style="width:100%;padding:15px;border-radius:12px;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;color:#100e0c;font-family:'Syne',sans-serif;font-size:15px;font-weight:800;cursor:pointer">Adicionar Extra</button>
+        <button id="ex-cancel" style="width:100%;padding:11px;border-radius:12px;background:none;border:1px solid var(--border2);color:var(--text2);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer">Cancelar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(()=>document.getElementById('ex-name')?.focus(),100);
+  overlay.addEventListener('click',function(e){
+    if(e.target.id==='ex-cancel'||e.target===overlay){ overlay.remove(); return; }
+    if(e.target.id!=='ex-save') return;
+    const svcName=(document.getElementById('ex-name').value||'').trim();
+    const val=parseFloat(document.getElementById('ex-val').value);
+    if(!svcName){ showToast('Introduz o nome do serviço.','error'); return; }
+    if(!val||val<=0){ showToast('Introduz um valor válido.','error'); return; }
+    const a=appts.find(x=>String(x.id)===String(id)); if(!a){ overlay.remove(); return; }
+    a.extras=a.extras||[];
+    a.extras.push({svc:svcName,val});
+    persistAppts(); overlay.remove(); renderAgenda();
+    setTimeout(()=>document.getElementById('appt-'+id)?.classList.add('expanded'),30);
+    showToast('✓ Extra adicionado!','success');
+  });
 }
 function removeExtra(id,idx){
   const a=appts.find(x=>String(x.id)===String(id)); if(!a) return;
@@ -1351,22 +1409,45 @@ function finalizeAppt(id){
   if(a.status==='noshow'){ showToast('Cliente marcada como faltou.','error'); return; }
   const paid=a.paid||a.price||0;
   const type=a.billed==='nfat'?'nfat':'fat';
-  entries=entries.filter(e=>e.apptId!==id);
+  const sid=String(id);
+  entries=entries.filter(e=>String(e.apptId)!==sid);
   if(paid>0){
-    const e={id:Date.now()+Math.random(),apptId:id,date:a.date,ts:a.date+'T'+a.time+':00.000Z',type,cat:a.cat,svc:a.svc,val:paid,staff:a.staff||(staff[0]||'')};
+    const e={id:Date.now()+Math.random(),apptId:id,date:a.date,ts:a.date+'T'+a.time+':00.000Z',type,cat:a.cat,svc:a.svc,val:paid,staff:a.staff||(staff[0]||''),payMethod:a.payType||'Dinheiro',clientName:a.name||''};
     entries.unshift(e);
     upsertClientFromEntry({...e, svc:a.svc, date:a.date, staff:a.staff});
   }
   (a.extras||[]).forEach((ex,i)=>{
-    entries.unshift({id:Date.now()+i+Math.random(),apptId:id,date:a.date,ts:a.date+'T'+a.time+':00.000Z',type,cat:a.cat,svc:ex.svc,val:ex.val,staff:a.staff||(staff[0]||'')});
+    entries.unshift({id:Date.now()+i+Math.random(),apptId:id,date:a.date,ts:a.date+'T'+a.time+':00.000Z',type,cat:a.cat,svc:ex.svc,val:ex.val,staff:a.staff||(staff[0]||''),payMethod:a.payType||'Dinheiro',clientName:a.name||''});
   });
   a.status='done'; persistAppts(); persist(); renderAgenda(); renderHoje();
   showToast('✓ Registo guardado!','success');
 }
 function deleteAppt(id){
-  if(!confirm('Apagar esta marcação?')) return;
-  appts=appts.filter(a=>a.id!==id); entries=entries.filter(e=>e.apptId!==id);
-  persistAppts(); persist(); renderAgenda(); renderHoje();
+  const sid=String(id);
+  // Build inline confirm overlay (no confirm() — blocks iOS)
+  const existing=document.getElementById('confirm-overlay');
+  if(existing) existing.remove();
+  const overlay=document.createElement('div');
+  overlay.id='confirm-overlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:600;background:rgba(10,8,6,.88);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML=`
+    <div style="background:var(--s1);border:1px solid var(--border2);border-radius:20px;width:100%;max-width:300px;padding:24px;text-align:center">
+      <div style="font-size:24px;margin-bottom:10px">🗑</div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px">Apagar esta marcação?</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:18px">Esta ação não pode ser desfeita.</div>
+      <div style="display:flex;gap:8px">
+        <button id="cf-cancel" style="flex:1;padding:12px;border-radius:10px;background:var(--s2);border:1px solid var(--border2);color:var(--text2);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer">Cancelar</button>
+        <button id="cf-confirm" style="flex:1;padding:12px;border-radius:10px;background:var(--red-d);border:1px solid var(--red);color:var(--red);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer">Apagar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click',function(e){
+    if(e.target.id==='cf-cancel'||e.target===overlay){ overlay.remove(); return; }
+    if(e.target.id!=='cf-confirm') return;
+    overlay.remove();
+    appts=appts.filter(a=>String(a.id)!==sid); entries=entries.filter(e=>String(e.apptId)!==sid);
+    persistAppts(); persist(); renderAgenda(); renderHoje();
+  });
 }
 
 // Agenda add modal
@@ -1664,7 +1745,7 @@ function confirmImport(){
     const staffVal=iStaff>=0?(staff.find(s=>String(r[iStaff]||'').toLowerCase().includes(s.toLowerCase()))||String(r[iStaff]||'').trim()||(staff[0]||'')):(staff[0]||'');
     const dup=entries.some(e=>e.date===date&&e.svc===svcName&&e.val===val);
     if(dup){ skipped++; return; }
-    entries.push({id:Date.now()+Math.random(),date,ts:date+'T12:00:00.000Z',type,cat,svc:svcName,val,staff:staffVal});
+    entries.push({id:Date.now()+Math.random(),date,ts:date+'T12:00:00.000Z',type,cat,svc:svcName,val,staff:staffVal,payMethod:'Dinheiro'});
     imported++;
   });
   entries.sort((a,b)=>b.date.localeCompare(a.date));
@@ -1742,10 +1823,11 @@ function changePin(name){
   });
 }
 function removeStaffMember(name){
-  if(!confirm('Apagar "'+name+'"?')) return;
-  staff=staff.filter(s=>s!==name);
-  persistStaff(); renderStaffCfg(); populateStaffSelects(); buildLoginScreen();
-  showToast(name+' removida.','success');
+  inlineConfirm('Apagar "'+name+'"?','Esta funcionária será removida da equipa.',function(){
+    staff=staff.filter(s=>s!==name);
+    persistStaff(); renderStaffCfg(); populateStaffSelects(); buildLoginScreen();
+    showToast(name+' removida.','success');
+  });
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1778,8 +1860,8 @@ function saveFirebaseConfig(){
 //  EXPORT CSV
 // ═══════════════════════════════════════════════════════════
 function exportCSV(){
-  const rows=[['Data','Hora','Funcionária','Tipo','Categoria','Serviço','Valor (€)']];
-  entries.forEach(e=>rows.push([e.date,fmtT(e.ts),e.staff||'',e.type==='fat'?'Faturado':'Não Faturado',e.cat,e.svc,e.val.toFixed(2).replace('.',',')]));
+  const rows=[['Data','Hora','Funcionária','Tipo','Categoria','Serviço','Valor (€)','Pagamento','Cliente']];
+  entries.forEach(e=>rows.push([e.date,fmtT(e.ts),e.staff||'',e.type==='fat'?'Faturado':'Não Faturado',e.cat,e.svc,e.val.toFixed(2).replace('.',','),e.payMethod||'Dinheiro',e.clientName||'']));
   const csv=rows.map(r=>r.map(c=>`"${c}"`).join(';')).join('\n');
   const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,'+encodeURIComponent('\uFEFF'+csv);
@@ -1790,10 +1872,11 @@ function exportCSV(){
 //  CLEAR DATA
 // ═══════════════════════════════════════════════════════════
 function confirmClear(){
-  if(!confirm('Apagar TODOS os registos?\nEsta ação não pode ser desfeita.')) return;
-  entries=[]; appts=[]; clients=[];
-  persist(); persistAppts(); persistClients(); renderAll();
-  showToast('Todos os dados apagados.','error');
+  inlineConfirm('Apagar TODOS os registos?','Esta ação não pode ser desfeita. Todos os serviços, marcações e clientes serão removidos.',function(){
+    entries=[]; appts=[]; clients=[];
+    persist(); persistAppts(); persistClients(); renderAll();
+    showToast('Todos os dados apagados.','error');
+  });
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1805,9 +1888,45 @@ function showToast(msg,type='success'){
 }
 
 // ═══════════════════════════════════════════════════════════
+//  INLINE CONFIRM (replaces confirm() for iOS compatibility)
+// ═══════════════════════════════════════════════════════════
+function inlineConfirm(msg, detail, onConfirm, confirmLabel='Apagar', confirmColor='var(--red)'){
+  const existing=document.getElementById('confirm-overlay');
+  if(existing) existing.remove();
+  const overlay=document.createElement('div');
+  overlay.id='confirm-overlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:600;background:rgba(10,8,6,.88);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:20px';
+  const bgD=confirmColor==='var(--red)'?'var(--red-d)':'var(--gold-d)';
+  overlay.innerHTML=`
+    <div style="background:var(--s1);border:1px solid var(--border2);border-radius:20px;width:100%;max-width:300px;padding:24px;text-align:center">
+      <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px">${msg}</div>
+      ${detail?`<div style="font-size:12px;color:var(--text2);margin-bottom:18px">${detail}</div>`:'<div style="margin-bottom:18px"></div>'}
+      <div style="display:flex;gap:8px">
+        <button id="cf-cancel" style="flex:1;padding:12px;border-radius:10px;background:var(--s2);border:1px solid var(--border2);color:var(--text2);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer">Cancelar</button>
+        <button id="cf-confirm" style="flex:1;padding:12px;border-radius:10px;background:${bgD};border:1px solid ${confirmColor};color:${confirmColor};font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer">${confirmLabel}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click',function(e){
+    if(e.target.id==='cf-cancel'||e.target===overlay){ overlay.remove(); return; }
+    if(e.target.id!=='cf-confirm') return;
+    overlay.remove();
+    onConfirm();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
 //  RENDER ALL
 // ═══════════════════════════════════════════════════════════
-function renderAll(){ renderHoje(); renderCfg(); updateBadges(); }
+function renderAll(){
+  renderHoje(); renderCfg(); updateBadges();
+  // Re-render the currently active view so data stays fresh
+  if(document.getElementById('view-analise')?.classList.contains('active')) renderAnalise();
+  if(document.getElementById('view-agenda')?.classList.contains('active')) renderAgenda();
+  if(document.getElementById('view-hist')?.classList.contains('active')) renderHist();
+  if(document.getElementById('view-clients')?.classList.contains('active')) renderClients();
+  if(document.getElementById('view-equipa')?.classList.contains('active')) renderEquipa();
+}
 
 function countPendingHR(){
   let total=0;

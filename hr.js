@@ -390,7 +390,7 @@ function requestFolga(dateStr, type){
 
 function approveCompensation(name,id,approve){
   const hr=getHR(name);
-  const c=(hr.compensations||[]).find(x=>x.id===id); if(!c) return;
+  const c=(hr.compensations||[]).find(x=>String(x.id)===String(id)); if(!c) return;
   c.status=approve?'approved':'rejected';
   persistHR(); renderEquipa(); updateBadges();
   showToast(approve?'✓ Folga aprovada! 🌙':'Pedido recusado.', approve?'success':'error');
@@ -449,7 +449,7 @@ function openEarlyDepartureModal(){
 
 function approveEarlyDeparture(name, id, approve){
   const hr = getHR(name);
-  const e  = (hr.earlyDepartures||[]).find(x=>x.id===id); if(!e) return;
+  const e  = (hr.earlyDepartures||[]).find(x=>String(x.id)===String(id)); if(!e) return;
   e.approved=approve; e.rejected=!approve;
   persistHR(); renderEquipa(); updateBadges();
   showToast(approve?'✓ Saída antecipada aprovada!':'Pedido recusado.', approve?'success':'error');
@@ -570,7 +570,7 @@ function openAddHoursModal(){
 
 function approveHours(name,id,approve){
   const hr=getHR(name);
-  const h=hr.hours.find(x=>x.id===id); if(!h) return;
+  const h=hr.hours.find(x=>String(x.id)===String(id)); if(!h) return;
   h.approved=approve; h.rejected=!approve;
   persistHR(); renderEquipa(); updateBadges();
   showToast(approve?'✓ Horas aprovadas!':'Horas recusadas.', approve?'success':'error');
@@ -578,14 +578,15 @@ function approveHours(name,id,approve){
 
 function deleteHours(name,id){
   const hr=getHR(name);
-  const h=hr.hours.find(x=>x.id===id); if(!h) return;
+  const h=hr.hours.find(x=>String(x.id)===String(id)); if(!h) return;
   if(currentRole!=='owner' && !isWithin24h(h.date)){
     showToast('Bloqueado — pede à Sónia para apagar registos antigos.','error'); 
     return;
   }
-  if(!confirm('Apagar este registo?')) return;
-  hr.hours=hr.hours.filter(x=>x.id!==id);
-  persistHR(); renderEquipa();
+  inlineConfirm('Apagar este registo?','As horas serão removidas permanentemente.',function(){
+    hr.hours=hr.hours.filter(x=>String(x.id)!==String(id));
+    persistHR(); renderEquipa();
+  });
 }
 
 // ── FÉRIAS ───────────────────────────────────────────────
@@ -827,7 +828,7 @@ function toggleVacationDay(name, dateStr){
     }
     // Remove the day (any role can remove pending, owner can remove approved)
     existing.dates=existing.dates.filter(d=>d!==dateStr);
-    if(!existing.dates.length) hr.vacations=hr.vacations.filter(v=>v.id!==existing.id);
+    if(!existing.dates.length) hr.vacations=hr.vacations.filter(v=>String(v.id)!==String(existing.id));
     persistHR(); renderEquipa();
     showToast('Dia removido.','success');
     return;
@@ -841,7 +842,7 @@ function toggleVacationDay(name, dateStr){
 
 function approveVacation(name,id,approve){
   const hr=getHR(name);
-  const v=hr.vacations.find(x=>x.id===id); if(!v) return;
+  const v=hr.vacations.find(x=>String(x.id)===String(id)); if(!v) return;
   v.status=approve?'approved':'rejected';
   persistHR(); renderEquipa(); updateBadges();
   showToast(approve?'✓ Férias aprovadas! 🌴':'Férias recusadas.', approve?'success':'error');
@@ -955,10 +956,11 @@ function openAddTrainingModal(){
 }
 
 function deleteTraining(name,id){
-  if(!confirm('Apagar esta formação?')) return;
-  const hr=getHR(name);
-  hr.training=hr.training.filter(x=>x.id!==id);
-  persistHR(); renderEquipa();
+  inlineConfirm('Apagar esta formação?','O registo será removido permanentemente.',function(){
+    const hr=getHR(name);
+    hr.training=hr.training.filter(x=>String(x.id)!==String(id));
+    persistHR(); renderEquipa();
+  });
 }
 
 function setTrainingHours(name,val){
